@@ -10,9 +10,13 @@ This module contains the logic for ant behavior, including:
 
 import random
 import math
-from typing import Tuple, Optional, Any
+from typing import Tuple, Optional, TYPE_CHECKING
 from ants.intents import Intent
 from ants.roles import Role
+
+if TYPE_CHECKING:
+    from state import GameState
+    from ants.ant import Ant
 
 
 def _rand_point(cfg, cx: float, cy: float, r: float) -> Tuple[float, float]:
@@ -24,8 +28,12 @@ def _rand_point(cfg, cx: float, cy: float, r: float) -> Tuple[float, float]:
     return x, y
 
 
-def _closest_enemy(state, x: float, y: float, radius: float) -> Tuple[Optional[Any], float]:
-    """Find the closest enemy within radius using squared distance for performance."""
+def _closest_enemy(state: 'GameState', x: float, y: float, radius: float) -> Tuple[Optional[object], float]:
+    """Find the closest enemy within radius using squared distance for performance.
+    
+    Returns:
+        Tuple of (enemy object or None, actual distance to enemy or 1e9 if none found)
+    """
     best = None
     best_dist_sq = radius * radius  # Use squared distance to avoid sqrt
     
@@ -42,7 +50,8 @@ def _closest_enemy(state, x: float, y: float, radius: float) -> Tuple[Optional[A
     actual_dist = math.sqrt(best_dist_sq) if best is not None else 1e9
     return best, actual_dist
 
-def choose_intent(state, ant) -> Intent:
+
+def choose_intent(state: 'GameState', ant: 'Ant') -> Intent:
     """Choose the next action for an ant based on its role and current state."""
     cfg = state.cfg
     nest = state.nest_pos  # Use cached nest position
