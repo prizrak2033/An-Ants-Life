@@ -1,1 +1,1 @@
-# Colony Module
+# colony package
