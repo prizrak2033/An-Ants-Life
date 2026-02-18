@@ -1,13 +1,27 @@
+"""
+Ant entity class and behavior.
+
+This module defines the Ant dataclass which represents individual ants
+in the simulation, including their movement, food gathering, and interactions
+with the nest and environment.
+"""
+
 from __future__ import annotations
 from dataclasses import dataclass
 import math
+from typing import TYPE_CHECKING
 
 from ants.roles import Role
 from ants.ai import choose_intent
 from colony.history import EventKind
 
-def _clamp(v, lo, hi):
-    return lo if v < lo else hi if v > hi else v
+if TYPE_CHECKING:
+    from state import GameState
+
+
+def _clamp(v: float, lo: float, hi: float) -> float:
+    """Clamp value v between lo and hi."""
+    return min(max(v, lo), hi)
 
 @dataclass
 class Ant:
@@ -19,7 +33,8 @@ class Ant:
     vy: float = 0.0
     carrying: float = 0.0
 
-    def update(self, state, dt: float):
+    def update(self, state: GameState, dt: float) -> None:
+        """Update ant position, behavior, and interactions each frame."""
         cfg = state.cfg
         intent = choose_intent(state, self)
 
@@ -46,9 +61,10 @@ class Ant:
 
         self._handle_food_and_nest(state)
 
-    def _handle_food_and_nest(self, state):
+    def _handle_food_and_nest(self, state: GameState) -> None:
+        """Handle food pickup and nest deposit interactions."""
         cfg = state.cfg
-        nest = (cfg.NEST_X, cfg.NEST_Y)
+        nest = state.nest_pos  # Use cached nest position
 
         # Pick up food
         if self.carrying <= 0:
