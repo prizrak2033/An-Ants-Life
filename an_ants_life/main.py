@@ -1,3 +1,14 @@
+"""
+An Ant's Life - Main simulation entry point.
+
+This is an ant colony simulation game inspired by SimAnt, featuring:
+- Worker, Scout, and Soldier ants with different behaviors
+- Pheromone-based pathfinding
+- Territory control mechanics
+- Enemy red ants and combat
+- Food gathering and colony management
+"""
+
 from config import SimConfig
 from state import GameState
 

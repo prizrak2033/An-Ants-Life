@@ -1,3 +1,9 @@
+"""
+Game State management for An Ant's Life.
+
+This module defines the GameState class which holds all the simulation state
+including the world, colony, enemies, and various subsystems.
+"""
 
 from dataclasses import dataclass, field
 from typing import Tuple

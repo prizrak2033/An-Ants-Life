@@ -1,3 +1,11 @@
+"""
+Ant entity class and behavior.
+
+This module defines the Ant dataclass which represents individual ants
+in the simulation, including their movement, food gathering, and interactions
+with the nest and environment.
+"""
+
 from __future__ import annotations
 from dataclasses import dataclass
 import math

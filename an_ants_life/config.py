@@ -1,4 +1,12 @@
+"""
+Configuration settings for the Ant Colony Simulation.
+
+This module contains all the simulation parameters, including world size,
+ant behavior, combat settings, and various game mechanics.
+"""
+
 from dataclasses import dataclass
+
 
 @dataclass(frozen=True)
 class SimConfig:

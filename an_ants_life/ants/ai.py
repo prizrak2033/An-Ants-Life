@@ -1,3 +1,13 @@
+"""
+Ant AI decision-making system.
+
+This module contains the logic for ant behavior, including:
+- Movement target selection based on role
+- Enemy detection and engagement
+- Pheromone following for foraging
+- Random exploration and patrolling
+"""
+
 import random
 import math
 from typing import Tuple, Optional, Any
