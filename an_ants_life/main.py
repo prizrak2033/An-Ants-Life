@@ -12,7 +12,8 @@ from ui.hud import render_hud
 from ui.debug import debug_dump
 
 
-def run():
+def run() -> None:
+    """Main game loop - runs the ant colony simulation."""
     cfg = SimConfig()
     state = GameState(cfg)
     clock = Timekeeper(cfg)
@@ -32,7 +33,8 @@ def run():
         state.pheromones.decay_and_diffuse(dt)
 
         # 4) Ant updates (movement + foraging)
-        for ant in list(state.colony.ants):
+        # Direct iteration is safe since ants list isn't modified during loop
+        for ant in state.colony.ants:
             ant.update(state, dt)
 
         # 5) Combat resolution (time-based, HP-based, soldiers intercept)

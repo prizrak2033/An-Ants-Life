@@ -1,28 +1,41 @@
 import random
 import math
+from typing import Tuple, Optional, Any
 from ants.intents import Intent
 from ants.roles import Role
 
-def _rand_point(cfg, cx, cy, r):
+
+def _rand_point(cfg, cx: float, cy: float, r: float) -> Tuple[float, float]:
+    """Generate a random point within radius r of (cx, cy), clamped to world bounds."""
     x = cx + (random.random() - 0.5) * 2 * r
     y = cy + (random.random() - 0.5) * 2 * r
-    x = max(0, min(cfg.WORLD_W, x))
-    y = max(0, min(cfg.WORLD_H, y))
+    x = min(max(0, x), cfg.WORLD_W)
+    y = min(max(0, y), cfg.WORLD_H)
     return x, y
 
-def _closest_enemy(state, x, y, radius):
-    best = None
-    bestd = 1e9
-    for e in state.enemies:
-        d = math.hypot(e.x - x, e.y - y)
-        if d < bestd and d <= radius:
-            bestd = d
-            best = e
-    return best, bestd
 
-def choose_intent(state, ant):
+def _closest_enemy(state, x: float, y: float, radius: float) -> Tuple[Optional[Any], float]:
+    """Find the closest enemy within radius using squared distance for performance."""
+    best = None
+    best_dist_sq = radius * radius  # Use squared distance to avoid sqrt
+    
+    for e in state.enemies:
+        dx = e.x - x
+        dy = e.y - y
+        dist_sq = dx * dx + dy * dy
+        
+        if dist_sq < best_dist_sq:
+            best_dist_sq = dist_sq
+            best = e
+    
+    # Return actual distance (sqrt) only if enemy found
+    actual_dist = math.sqrt(best_dist_sq) if best is not None else 1e9
+    return best, actual_dist
+
+def choose_intent(state, ant) -> Intent:
+    """Choose the next action for an ant based on its role and current state."""
     cfg = state.cfg
-    nest = (cfg.NEST_X, cfg.NEST_Y)
+    nest = state.nest_pos  # Use cached nest position
 
     # Soldiers: intercept nearest enemy near nest / within scan radius
     if ant.role == Role.SOLDIER:
