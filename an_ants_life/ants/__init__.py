@@ -1,1 +1,1 @@
-# Ants Module
+# ants package
