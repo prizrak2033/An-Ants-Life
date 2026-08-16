@@ -44,11 +44,11 @@ class ColonyState:
         # Build initial ants
         aid = 1
         for _ in range(cfg.INITIAL_WORKERS):
-            self.ants.append(Ant(aid, Role.WORKER, cfg.NEST_X + random.uniform(-4, 4), cfg.NEST_Y + random.uniform(-4, 4)))
+            self.ants.append(Ant(aid, Role.WORKER, cfg.NEST_X + random.uniform(-4, 4), cfg.NEST_Y + random.uniform(-4, 4), hp=cfg.ANT_HP_MAX))
             aid += 1
         for _ in range(cfg.INITIAL_SCOUTS):
-            self.ants.append(Ant(aid, Role.SCOUT, cfg.NEST_X + random.uniform(-4, 4), cfg.NEST_Y + random.uniform(-4, 4)))
+            self.ants.append(Ant(aid, Role.SCOUT, cfg.NEST_X + random.uniform(-4, 4), cfg.NEST_Y + random.uniform(-4, 4), hp=cfg.ANT_HP_MAX))
             aid += 1
         for _ in range(cfg.INITIAL_SOLDIERS):
-            self.ants.append(Ant(aid, Role.SOLDIER, cfg.NEST_X + random.uniform(-4, 4), cfg.NEST_Y + random.uniform(-4, 4)))
+            self.ants.append(Ant(aid, Role.SOLDIER, cfg.NEST_X + random.uniform(-4, 4), cfg.NEST_Y + random.uniform(-4, 4), hp=cfg.ANT_HP_MAX))
             aid += 1

@@ -95,10 +95,17 @@ class SimConfig:
     COMBAT_ENGAGE_RADIUS: float = 4.0
     COMBAT_TICK_COOLDOWN: int = 12
 
+    ANT_HP_MAX: int = 3
     ANT_WORKER_ATK: int = 1
     ANT_SCOUT_ATK: int = 1
     ANT_SOLDIER_ATK: int = 2
     REDANT_ATK: int = 1
+
+    # Economy
+    FOOD_UPKEEP_PER_ANT_PER_SEC: float = 0.015
+    FOOD_RESERVE_BUFFER_SEC: float = 60.0
+    FOOD_SOURCE_MIN_DIST_FROM_NEST: float = 20.0
+    FOOD_SOURCE_RESPAWN_CHANCE_PER_TICK: float = 0.01
 
     # Queen/Colony health (2)
     QUEEN_HP_MAX: int = 30

@@ -68,6 +68,10 @@ def choose_intent(state: 'GameState', ant: 'Ant') -> Intent:
     if ant.role == Role.WORKER:
         if ant.carrying > 0:
             return Intent(target=nest, deposit_channel="home")
+        # sense nearby food directly
+        src = state.world.nearest_food((ant.x, ant.y), cfg.ANT_SENSE_RADIUS)
+        if src is not None:
+            return Intent(target=(src.x, src.y), deposit_channel="food")
         # bias toward food pheromone gradient (very light)
         pt = state.pheromones.sample_best_direction("food", (ant.x, ant.y), step=cfg.PHERO_FOLLOW_STEP)
         if pt is not None:
@@ -75,7 +79,10 @@ def choose_intent(state: 'GameState', ant: 'Ant') -> Intent:
         # wander
         return Intent(target=_rand_point(cfg, ant.x, ant.y, 20.0), deposit_channel="food")
 
-    # Scouts: wide roam, mark home lightly
+    # Scouts: wide roam, sense food, mark home lightly
+    src = state.world.nearest_food((ant.x, ant.y), cfg.ANT_SENSE_RADIUS)
+    if src is not None:
+        return Intent(target=(src.x, src.y), deposit_channel="food")
     pt = state.pheromones.sample_best_direction("food", (ant.x, ant.y), step=cfg.PHERO_FOLLOW_STEP)
     if pt is not None and random.random() < 0.4:
         return Intent(target=pt, deposit_channel="food")
