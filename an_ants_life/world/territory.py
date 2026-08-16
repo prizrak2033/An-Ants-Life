@@ -23,8 +23,8 @@ class TerritoryModel:
         nest_cx, nest_cy = self._cell_of(cfg.NEST_X, cfg.NEST_Y)
         for cx in range(self.cols):
             for cy in range(self.rows):
-                if math.hypot(cx - nest_cx, cy - nest_cy) <= 3:
-                    self.grid[cx][cy] = 0.3
+                if math.hypot(cx - nest_cx, cy - nest_cy) <= cfg.TERR_HOME_BIAS_RADIUS_CELLS:
+                    self.grid[cx][cy] = cfg.TERR_HOME_BIAS_VALUE
 
         self._last_border_incident_tick = -10_000
         self._last_expansion_tick = -10_000
@@ -85,7 +85,7 @@ class TerritoryModel:
         nest_x, nest_y = state.nest_pos
         nest_cx, nest_cy = self._cell_of(nest_x, nest_y)
 
-        radius_cells = 4
+        radius_cells = cfg.TERR_PRESSURE_SAMPLE_RADIUS_CELLS
         vals = []
         for cx in range(self.cols):
             for cy in range(self.rows):

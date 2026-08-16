@@ -45,9 +45,9 @@ class SimConfig:
     PHERO_FOLLOW_STEP: float = 14.0
 
     # Stress
-    STRESS_DECAY_PER_SEC: float = 0.15
-    STRESS_FROM_HUNGER: float = 0.80
-    TERR_STRESS_FROM_PRESSURE: float = 0.55
+    STRESS_DECAY_PER_SEC: float = 0.20
+    STRESS_FROM_HUNGER: float = 0.50
+    TERR_STRESS_FROM_PRESSURE: float = 0.28
 
     # Emergencies
     EMERGENCY_FAMINE_ON_HUNGER: float = 0.70
@@ -55,11 +55,11 @@ class SimConfig:
     EMERGENCY_FAMINE_MIN_TICKS: int = 180
     EMERGENCY_FAMINE_STRESS_BONUS: float = 0.25
 
-    EMERGENCY_RAID_STRESS_GATE: float = 0.85
-    EMERGENCY_RAID_CHANCE_PER_TICK: float = 0.004
-    EMERGENCY_RAID_COOLDOWN_TICKS: int = 600
+    EMERGENCY_RAID_STRESS_GATE: float = 0.90
+    EMERGENCY_RAID_CHANCE_PER_TICK: float = 0.0025
+    EMERGENCY_RAID_COOLDOWN_TICKS: int = 900
     EMERGENCY_RAID_MIN_KILLS: int = 1
-    EMERGENCY_RAID_MAX_KILLS: int = 4
+    EMERGENCY_RAID_MAX_KILLS: int = 3
 
     EMERGENCY_FAMINE_CONVERT_SCOUTS_TO_WORKERS: int = 1
     EMERGENCY_FAMINE_CONVERT_SOLDIERS_TO_WORKERS: int = 1
@@ -73,32 +73,36 @@ class SimConfig:
     TERR_INFL_SCOUT: float = 0.20
     TERR_INFL_SOLDIER: float = 0.16
 
-    TERR_AMBIENT_ENEMY_PUSH: float = 0.0008
+    TERR_AMBIENT_ENEMY_PUSH: float = 0.0004
     TERR_ENEMY_NOISE: float = 0.010
 
     TERR_BORDER_INCIDENT_PRESSURE: float = 0.72
     TERR_EXPANSION_CONTROL: float = 0.58
     TERR_EVENT_COOLDOWN_TICKS: int = 300
 
+    TERR_HOME_BIAS_RADIUS_CELLS: int = 5
+    TERR_HOME_BIAS_VALUE: float = 0.6
+    TERR_PRESSURE_SAMPLE_RADIUS_CELLS: int = 4
+
     # Enemies: Red ants
     REDANT_ENABLE: bool = True
-    REDANT_BASE_SPAWN_CHANCE_PER_TICK: float = 0.006
-    REDANT_SPAWN_PRESSURE_MULT: float = 1.6
-    REDANT_MAX_ALIVE: int = 10
+    REDANT_BASE_SPAWN_CHANCE_PER_TICK: float = 0.0035
+    REDANT_SPAWN_PRESSURE_MULT: float = 1.0
+    REDANT_MAX_ALIVE: int = 6
     REDANT_SPEED: float = 28.0
     REDANT_HP: int = 3
-    REDANT_TERR_INFLUENCE: float = 0.22
+    REDANT_TERR_INFLUENCE: float = 0.16
 
     # Combat (1)
     COMBAT_ENABLE: bool = True
     COMBAT_SCAN_RADIUS: float = 14.0
     COMBAT_ENGAGE_RADIUS: float = 4.0
-    COMBAT_TICK_COOLDOWN: int = 12
+    COMBAT_TICK_COOLDOWN: int = 10
 
-    ANT_HP_MAX: int = 3
+    ANT_HP_MAX: int = 4
     ANT_WORKER_ATK: int = 1
     ANT_SCOUT_ATK: int = 1
-    ANT_SOLDIER_ATK: int = 2
+    ANT_SOLDIER_ATK: int = 3
     REDANT_ATK: int = 1
 
     # Economy
@@ -108,8 +112,8 @@ class SimConfig:
     FOOD_SOURCE_RESPAWN_CHANCE_PER_TICK: float = 0.01
 
     # Queen/Colony health (2)
-    QUEEN_HP_MAX: int = 30
-    QUEEN_THREAT_RADIUS: float = 8.0
+    QUEEN_HP_MAX: int = 40
+    QUEEN_THREAT_RADIUS: float = 6.0
     QUEEN_DAMAGE_PER_HIT: int = 2
 
     # Objectives (3)
