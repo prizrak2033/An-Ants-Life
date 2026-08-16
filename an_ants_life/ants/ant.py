@@ -32,6 +32,8 @@ class Ant:
     vx: float = 0.0
     vy: float = 0.0
     carrying: float = 0.0
+    hp: int = 3
+    last_combat_tick: int = -10_000
 
     def update(self, state: GameState, dt: float) -> None:
         """Update ant position, behavior, and interactions each frame."""
