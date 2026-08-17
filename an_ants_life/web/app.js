@@ -380,7 +380,9 @@ function renderDirectiveList(data) {
     }
     const where = document.createElement("span");
     where.className = "where";
-    where.textContent = `${Math.round(d.x)},${Math.round(d.y)}`;
+    where.textContent = d.cap != null
+      ? `${d.recruits}/${d.cap} ants`
+      : `${Math.round(d.x)},${Math.round(d.y)}`;
     const fade = document.createElement("span");
     fade.className = "fade";
     const bar = document.createElement("i");
@@ -428,6 +430,25 @@ function updateSidebar(data) {
   document.getElementById("n-worker").textContent = workers;
   document.getElementById("n-scout").textContent = scouts;
   document.getElementById("n-soldier").textContent = soldiers;
+
+  // Population against the world's food ceiling, plus whether the colony
+  // is currently feeding itself. These are deliberately two readings: the
+  // ceiling comes from world regen and no action changes it, while the
+  // balance is a flow that says how today is going.
+  const pop = data.colony.population;
+  const capacity = data.colony.carrying_capacity || 0;
+  const balance = data.colony.food_balance || 0;
+  const over = capacity > 0 && pop > capacity;
+  document.getElementById("v-capacity").textContent = `${pop} / ${Math.round(capacity)}`;
+  const capBar = document.getElementById("bar-capacity");
+  capBar.style.width = `${Math.min(100, capacity > 0 ? (pop / capacity) * 100 : 0)}%`;
+  capBar.style.background = over ? "var(--critical)" : "var(--good)";
+  document.getElementById("capacity-badge").style.display = over ? "inline-block" : "none";
+  const sign = balance >= 0 ? "+" : "−";
+  document.getElementById("capacity-note").innerHTML =
+    (over ? "Past what this world can feed. " : "")
+    + `Food balance <b style="color:${balance >= 0 ? "var(--good)" : "var(--critical)"}">`
+    + `${sign}${Math.abs(balance).toFixed(2)}/s</b>`;
 
   document.getElementById("v-food").textContent = data.colony.food_store.toFixed(1);
 
@@ -515,7 +536,7 @@ async function send(payload) {
 // Says what a directive actually does, since none of them command ants
 // directly and that is easy to misread as the tool having failed.
 const TOOL_DETAIL = {
-  FORAGE: "Lays food scent — workers recruit themselves to it.",
+  FORAGE: "Recruits nearby idle workers, up to a limit — not the whole colony.",
   DEFEND: "Up to half the guard patrols here; the rest hold the nest.",
   EXPLORE: "Scouts range around here instead of home.",
   none: "",

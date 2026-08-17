@@ -9,7 +9,7 @@ with the nest and environment.
 from __future__ import annotations
 from dataclasses import dataclass
 import math
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from ants.roles import Role
 from ants.ai import choose_intent
@@ -36,11 +36,15 @@ class Ant:
     last_combat_tick: int = -10_000
     detour_until_tick: int = -1
     detour_side: int = 1
+    # Forage mark this ant has answered, if any. Cleared the moment it
+    # actually has food, so a recruit is never held to a mark once it has
+    # something better to do.
+    recruited_to: Optional[int] = None
 
     def update(self, state: GameState, dt: float) -> None:
         """Update ant position, behavior, and interactions each frame."""
         cfg = state.cfg
-        intent = choose_intent(state, self)
+        intent = choose_intent(state, self, dt)
 
         # Deposit pheromones
         if intent.deposit_channel == "food":

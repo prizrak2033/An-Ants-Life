@@ -17,6 +17,7 @@ is attention, not food.
 """
 from __future__ import annotations
 import math
+import random
 from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
@@ -36,6 +37,9 @@ class Directive:
     y: float
     strength: float = 1.0
     created_t: float = 0.0
+    # Live count of ants currently answering this mark, recomputed each
+    # tick from the roster so deaths release their slot automatically.
+    recruits: int = 0
 
     @property
     def spent(self) -> bool:
@@ -107,3 +111,47 @@ class DirectiveBoard:
 
     def of_kind(self, kind: DirectiveKind) -> List[Directive]:
         return [d for d in self.items if d.kind is kind]
+
+    def by_id(self, directive_id: int) -> Optional[Directive]:
+        for d in self.items:
+            if d.id == directive_id:
+                return d
+        return None
+
+    def try_recruit(self, ant, dt: float) -> Optional[Directive]:
+        """Maybe sign this ant up to a nearby forage mark.
+
+        This replaced a global scent broadcast, which is what made marks
+        counterproductive: pheromone diffuses, so every worker on the map
+        answered one mark at once and average round trips roughly doubled.
+        Recruitment here is deliberately local and finite, the way it is
+        in a real colony - a mark can only hold so many, only ants close
+        enough hear about it, and nearer ones answer more readily.
+
+        Amplification beyond the cap is left to the colony: recruits that
+        actually find food lay a real trail home, and that trail recruits
+        further on its own merits. A mark over an empty patch produces no
+        trail and so quietly recruits nobody else.
+        """
+        cfg = self.cfg
+        radius = cfg.DIRECTIVE_RECRUIT_RADIUS
+        best, best_d = None, radius
+        for d in self.items:
+            if d.kind is not DirectiveKind.FORAGE:
+                continue
+            if d.recruits >= cfg.DIRECTIVE_RECRUIT_CAP:
+                continue
+            dist = math.hypot(d.x - ant.x, d.y - ant.y)
+            if dist < best_d:
+                best_d, best = dist, d
+        if best is None:
+            return None
+
+        # Falls off with distance, so a mark pulls from its own
+        # neighbourhood rather than dragging the far side of the map over.
+        nearness = 1.0 - (best_d / radius)
+        chance = cfg.DIRECTIVE_RECRUIT_CHANCE_PER_SEC * dt * nearness * best.strength
+        if random.random() < chance:
+            best.recruits += 1  # provisional; recomputed authoritatively each tick
+            return best
+        return None

@@ -273,12 +273,15 @@ class SimConfig:
     # than bypassing it.
     DIRECTIVE_MAX_PER_KIND: int = 3
     DIRECTIVE_LIFETIME_SECONDS: float = 75.0
-    # Strong enough to out-scent a natural trail near the mark, but not by
-    # so much that it erases them. At 0.9 it settled around seven times a
-    # real trail's peak, which collapsed the colony's distributed foraging
-    # onto whichever single pile was marked and cost throughput outright.
-    DIRECTIVE_FORAGE_DEPOSIT_PER_SEC: float = 0.32
-    DIRECTIVE_FORAGE_RADIUS: float = 4.0
+    # A forage mark recruits nearby searching ants rather than laying
+    # scent. Depositing pheromone was a broadcast - it diffuses, so one
+    # mark pulled the whole workforce across the map and roughly halved
+    # deposits. These three numbers are the whole cost model: only ants
+    # within the radius hear it, only so many can answer, and nearer ones
+    # answer more readily.
+    DIRECTIVE_RECRUIT_RADIUS: float = 38.0
+    DIRECTIVE_RECRUIT_CAP: int = 8
+    DIRECTIVE_RECRUIT_CHANCE_PER_SEC: float = 1.2
     DIRECTIVE_DEFEND_PATROL_RADIUS: float = 12.0
     # A defend mark can only ever draw part of the guard. Letting it take
     # every soldier left the queen with no garrison at all: measured over
@@ -286,6 +289,13 @@ class SimConfig:
     # 12. Posting a forward guard should be a trade, not a trap.
     DIRECTIVE_DEFEND_MAX_SHARE: float = 0.5
     DIRECTIVE_EXPLORE_ROAM_RADIUS: float = 26.0
+
+    # Delivery rate is spiky per tick, so the carrying-capacity readout is
+    # smoothed over roughly this long before being shown.
+    CAPACITY_SMOOTHING_SECONDS: float = 25.0
+    # Share of world food regen left for upkeep after combat attrition
+    # takes its cut on replacement births - measured at roughly a third.
+    CAPACITY_ATTRITION_ALLOWANCE: float = 0.34
 
     POLICY_MAX_SCOUT_FRAC: float = 0.35
     POLICY_MAX_SOLDIER_FRAC: float = 0.60

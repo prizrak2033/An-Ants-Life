@@ -1,29 +1,26 @@
 """
 Applies player directives to the world.
 
-Only FORAGE has a world effect of its own, and it is deliberately the
-dumbest possible one: it lays food scent. Workers already climb that
-gradient outward looking for a source, so recruitment to a marked spot
-happens through the existing trail loop rather than through a special
-case in ant AI. DEFEND and EXPLORE need no world effect at all - they
-are read directly as patrol and roam anchors.
+Forage marks used to deposit food scent directly. That was a broadcast,
+not recruitment: pheromone diffuses, so a single mark pulled the entire
+workforce onto one pile regardless of distance, roughly halving deposits
+and measurably making played colonies worse than untouched ones.
+
+Marks now recruit instead (see DirectiveBoard.try_recruit), and nothing
+here writes to the pheromone grid at all. Amplification is left to the
+colony: recruits that find food lay a genuine trail home, and that trail
+draws others on its own merit, so a mark over a good patch grows into a
+supply line while a mark over nothing quietly attracts no one.
+
+This system's remaining job is bookkeeping - fading marks out, and
+recounting who is answering each one.
 """
 from __future__ import annotations
 
-import math
-
-from colony.directives import DirectiveKind
 from colony.history import EventKind
-
-# Unit offsets at 45 degree steps, so the deposited patch reads as round.
-_RING = tuple(
-    (math.cos(a), math.sin(a))
-    for a in (i * math.pi / 4 for i in range(8))
-)
 
 
 def update_directives(state, dt: float) -> None:
-    cfg = state.cfg
     board = state.directives
 
     for d in board.decay(dt):
@@ -36,18 +33,20 @@ def update_directives(state, dt: float) -> None:
     if not board.items:
         return
 
-    phero = state.pheromones
-    amount = cfg.DIRECTIVE_FORAGE_DEPOSIT_PER_SEC * dt
-    spread = cfg.DIRECTIVE_FORAGE_RADIUS
+    # Recount from the live roster so an ant that died, or picked up food
+    # and dropped its errand, frees its slot without any explicit release.
+    counts = {}
+    for ant in state.colony.ants:
+        rid = getattr(ant, "recruited_to", None)
+        if rid is not None:
+            counts[rid] = counts.get(rid, 0) + 1
 
-    for d in board.of_kind(DirectiveKind.FORAGE):
-        # Fades with the mark, so a stale directive stops out-shouting
-        # trails the colony found on its own.
-        strength = amount * d.strength
-        phero.deposit("food", (d.x, d.y), strength)
-        # Spread over a ring rather than one cell, or passing ants miss it.
-        # Diagonals are pulled in to sit on the same radius as the
-        # cardinals - four cardinal offsets alone laid a visibly
-        # cross-shaped plume on the map.
-        for ox, oy in _RING:
-            phero.deposit("food", (d.x + ox * spread, d.y + oy * spread), strength * 0.55)
+    live_ids = set()
+    for d in board.items:
+        d.recruits = counts.get(d.id, 0)
+        live_ids.add(d.id)
+
+    # Release anyone still holding a mark that has since expired.
+    for ant in state.colony.ants:
+        if ant.recruited_to is not None and ant.recruited_to not in live_ids:
+            ant.recruited_to = None

@@ -85,7 +85,7 @@ def _closest_laden_raider(state: 'GameState', x: float, y: float, radius: float)
     return best
 
 
-def choose_intent(state: 'GameState', ant: 'Ant') -> Intent:
+def choose_intent(state: 'GameState', ant: 'Ant', dt: float = 1.0 / 30.0) -> Intent:
     """Choose the next action for an ant based on its role and current state."""
     cfg = state.cfg
     nest = state.nest_pos  # Use cached nest position
@@ -128,11 +128,32 @@ def choose_intent(state: 'GameState', ant: 'Ant') -> Intent:
     # climb the food gradient outward to get recruited to that source.
     if ant.role == Role.WORKER:
         if ant.carrying > 0:
+            ant.recruited_to = None  # it has food; the errand is over
             return Intent(target=nest, deposit_channel="food")
-        # sense nearby food directly
+
+        # Food it can already see beats any standing order. This ordering
+        # is what keeps a mark from dragging workers past closer pickings
+        # and doubling everyone's round trip.
         src = state.world.nearest_food((ant.x, ant.y), cfg.ANT_SENSE_RADIUS)
         if src is not None:
+            ant.recruited_to = None
             return Intent(target=(src.x, src.y), deposit_channel="home")
+
+        # Honour a mark already answered.
+        if ant.recruited_to is not None:
+            mark = board.by_id(ant.recruited_to)
+            if mark is None:
+                ant.recruited_to = None
+            else:
+                return Intent(target=(mark.x, mark.y), deposit_channel="home")
+
+        # Otherwise consider answering one - only searching ants are
+        # eligible, and only from nearby.
+        mark = board.try_recruit(ant, dt)
+        if mark is not None:
+            ant.recruited_to = mark.id
+            return Intent(target=(mark.x, mark.y), deposit_channel="home")
+
         # follow a real forager's trail outward toward its source
         pt = state.pheromones.sample_best_direction(
             "food", (ant.x, ant.y), step=cfg.PHERO_FOLLOW_STEP, away_from=nest

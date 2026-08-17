@@ -76,6 +76,10 @@ def _build_snapshot(state: GameState, paused: bool) -> dict:
             "famine": bool(colony.emergency.get("famine_active", False)),
             "pressure": round(colony.emergency.get("territory_pressure", 0.0), 3),
             "population": len(colony.ants),
+            "income_per_sec": round(colony.emergency.get("income_per_sec", 0.0), 3),
+            "upkeep_per_sec": round(colony.emergency.get("upkeep_per_sec", 0.0), 3),
+            "food_balance": round(colony.emergency.get("food_balance", 0.0), 3),
+            "carrying_capacity": round(colony.emergency.get("carrying_capacity", 0.0), 1),
         },
         "enemy_counts": _count_kinds(state.enemies),
         "metrics": dict(colony.metrics),
@@ -128,7 +132,8 @@ def _build_snapshot(state: GameState, paused: bool) -> dict:
         },
         "directives": [
             {"id": d.id, "kind": d.kind.value, "x": round(d.x, 2), "y": round(d.y, 2),
-             "strength": round(d.strength, 3)}
+             "strength": round(d.strength, 3), "recruits": d.recruits,
+             "cap": cfg.DIRECTIVE_RECRUIT_CAP if d.kind is DirectiveKind.FORAGE else None}
             for d in state.directives.items
         ],
         "policy": {
