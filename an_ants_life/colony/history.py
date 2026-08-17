@@ -35,6 +35,9 @@ class EventKind:
     # Objectives
     OBJ_CLAIMED = "objective_claimed"
 
+    # Growth
+    ANT_BORN = "ant_born"
+
     # Chapters
     CHAPTER_START = "chapter_start"
     CHAPTER_END = "chapter_end"

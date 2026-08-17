@@ -17,6 +17,13 @@ from world.map import WorldMap
 from world.pheromones import PheromoneSystem
 from world.territory import TerritoryModel
 
+from systems.enemies import update_enemies
+from systems.combat import update_combat
+from systems.objectives import update_objectives
+from systems.stress import update_stress
+from systems.growth import update_growth
+from systems.emergencies import update_emergencies
+
 
 @dataclass
 class GameState:
@@ -49,3 +56,24 @@ class GameState:
         
         # Cache nest position
         self.nest_pos = (self.cfg.NEST_X, self.cfg.NEST_Y)
+
+    def step(self, dt: float) -> None:
+        """Advance the simulation by one tick. Shared by every runner
+        (console main loop, web server) so the pipeline can't drift."""
+        self.t += dt
+        self.tick += 1
+
+        update_enemies(self, dt)
+        self.territory.update(self)
+        self.pheromones.decay_and_diffuse(dt)
+
+        for ant in self.colony.ants:
+            ant.update(self, dt)
+
+        update_combat(self, dt)
+        update_objectives(self, dt)
+        update_stress(self, dt)
+        update_growth(self, dt)
+        update_emergencies(self, dt)
+
+        self.milestones.update(self)

@@ -17,6 +17,7 @@ def update_stress(state, dt: float) -> None:
     reserve_target = max(1.0, population * cfg.FOOD_UPKEEP_PER_ANT_PER_SEC * cfg.FOOD_RESERVE_BUFFER_SEC)
     hunger = max(0.0, min(1.0, 1.0 - colony.food_store / reserve_target))
     colony.emergency["hunger"] = hunger
+    colony.emergency["food_reserve_target"] = reserve_target
 
     state.world.maybe_respawn_food()
 

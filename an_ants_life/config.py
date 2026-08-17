@@ -111,6 +111,16 @@ class SimConfig:
     FOOD_SOURCE_MIN_DIST_FROM_NEST: float = 20.0
     FOOD_SOURCE_RESPAWN_CHANCE_PER_TICK: float = 0.01
 
+    # Growth
+    GROWTH_ENABLE: bool = True
+    GROWTH_EGG_FOOD_COST: float = 6.0
+    GROWTH_SURPLUS_MULT: float = 1.5  # food_store must exceed reserve_target * this to lay an egg
+    GROWTH_MIN_TICKS_BETWEEN_BIRTHS: int = 90
+    GROWTH_MAX_POPULATION: int = 60
+    GROWTH_WORKER_WEIGHT: float = 0.78
+    GROWTH_SCOUT_WEIGHT: float = 0.09
+    GROWTH_SOLDIER_WEIGHT: float = 0.13
+
     # Queen/Colony health (2)
     QUEEN_HP_MAX: int = 40
     QUEEN_THREAT_RADIUS: float = 6.0
