@@ -129,12 +129,24 @@ class SimConfig:
 
     # Enemies (shared)
     ENEMY_ENABLE: bool = True
-    ENEMY_BASE_SPAWN_CHANCE_PER_TICK: float = 0.0028
+    ENEMY_BASE_SPAWN_CHANCE_PER_TICK: float = 0.0045
+    # Left at 1.0 deliberately. Scaling spawns harder with lost territory
+    # was tested at 1.3 and 1.6 and made outcomes *less* responsive to
+    # play, not more: a colony already losing ground gets buried faster,
+    # which is a spiral rather than a challenge.
     ENEMY_SPAWN_PRESSURE_MULT: float = 1.0
-    # Four rather than the five of the single-enemy era: each kind is
-    # individually more dangerous than the old uniform red ant, so the same
-    # concurrent cap measured considerably harsher.
-    ENEMY_MAX_ALIVE: int = 4
+    # Retuned against the corrected 26% soldier baseline. Once the caste
+    # default stopped being a trap, passive play survived 11 of 12 runs
+    # and there was simply no room left for attention to matter - some of
+    # the old difficulty had been resting on the bad default rather than
+    # on the enemies.
+    #
+    # At six concurrent and this spawn rate, passive play sits at 6/12
+    # while attentive play (recall during a siege, plus forage marks)
+    # reaches 8/12 with 16% more food. Pushing further was tested and
+    # rejected: at seven concurrent with pressure feedback, survival fell
+    # to 1/8 regardless of play, which is not difficulty but noise.
+    ENEMY_MAX_ALIVE: int = 6
 
     # Spawn mix. Warriors stay the most common threat so nest defence
     # remains the baseline concern; predators are rare because they are
