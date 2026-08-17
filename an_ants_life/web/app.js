@@ -74,6 +74,33 @@ let sliderHeld = null;
 // not pop back on the next poll while they look over the final map.
 let dismissedEnding = null;
 
+const audio = new ColonyAudio();
+// Sound follows the chronicle, which is already significance-filtered.
+// Entries are keyed by timestamp so only genuinely new beats fire, and
+// a fresh colony resets the mark rather than replaying its whole past.
+let lastHeardT = -1;
+
+function playNewEvents(data) {
+  if (!audio.enabled) return;
+  const entries = data.chronicle || [];
+  if (lastHeardT < 0) {
+    // First frame heard: adopt the present rather than sounding history.
+    lastHeardT = entries.length ? entries[entries.length - 1].t : 0;
+    return;
+  }
+  if (entries.length && entries[entries.length - 1].t < lastHeardT) {
+    lastHeardT = entries[entries.length - 1].t;  // restarted or resumed
+  }
+  let newest = lastHeardT;
+  for (const e of entries) {
+    if (e.t > lastHeardT) {
+      audio.event(e.kind);
+      if (e.t > newest) newest = e.t;
+    }
+  }
+  lastHeardT = newest;
+}
+
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 function divergingColor(v) {
@@ -552,6 +579,8 @@ async function poll() {
     lastFrame = data;
     render(data);
     updateSidebar(data);
+    audio.update(data);
+    playNewEvents(data);
   } catch (err) {
     // server briefly unreachable (e.g. restarting); just retry next tick
   }
@@ -786,6 +815,31 @@ document.getElementById("delete-save-btn").addEventListener("click", async () =>
   if (!name) return;
   await send({ action: "delete_save", name });
   setTimeout(refreshSaves, 400);
+});
+
+const soundBtn = document.getElementById("sound-btn");
+const volumeSlider = document.getElementById("volume-slider");
+
+soundBtn.addEventListener("click", async () => {
+  if (audio.enabled) {
+    audio.disable();
+    soundBtn.textContent = "Sound off";
+    soundBtn.classList.remove("active");
+    volumeSlider.style.display = "none";
+    return;
+  }
+  // Browsers only allow audio to start from a gesture, which is why this
+  // lives on the button rather than running at load.
+  const ok = await audio.enable();
+  soundBtn.textContent = ok ? "Sound on" : "No audio";
+  soundBtn.classList.toggle("active", ok);
+  soundBtn.classList.add("tool");
+  volumeSlider.style.display = ok ? "inline-block" : "none";
+  lastHeardT = -1;  // adopt the present; don't replay what already happened
+});
+
+volumeSlider.addEventListener("input", () => {
+  audio.setVolume(Number(volumeSlider.value) / 100);
 });
 
 setTool("none");

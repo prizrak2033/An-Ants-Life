@@ -400,6 +400,9 @@
     <span id="colony-name"></span>
     <span class="tick" id="tick-readout">tick 0 · t 0.0s</span>
     <div class="spacer"></div>
+    <button id="sound-btn" title="Colony ambience and event sounds">Sound off</button>
+    <input type="range" id="volume-slider" min="0" max="100" value="60"
+           title="Volume" style="width:80px; accent-color: var(--food); display:none">
     <button id="rally-btn" title="Recall every ant to the nest. Foraging stops.">Recall</button>
     <button id="pause-btn">Pause</button>
     <button id="restart-btn">Restart</button>
@@ -588,6 +591,7 @@
   </main>
 
 
+  <script src="/audio.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

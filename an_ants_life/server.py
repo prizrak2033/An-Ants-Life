@@ -139,8 +139,11 @@ def _build_snapshot(state: GameState, paused: bool, save_note: Optional[str] = N
         },
         # Narrated, and filtered to events that carry the story - a plain
         # tail of the log is ~82% routine foraging and combat churn.
+        # `kind` rides along for the audio layer, which picks a sound from
+        # it and reuses the same significance filter the text does.
         "chronicle": [
-            {"t": round(l["t"], 1), "text": l["text"], "major": l["major"], "repeat": l["repeat"]}
+            {"t": round(l["t"], 1), "kind": l["kind"], "text": l["text"],
+             "major": l["major"], "repeat": l["repeat"]}
             for l in chronicle_lines(state.history, 14)
         ],
         "saga": {
@@ -367,6 +370,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, "text/html; charset=utf-8", (WEB_DIR / "index.html").read_bytes())
         elif self.path == "/app.js":
             self._send(200, "application/javascript; charset=utf-8", (WEB_DIR / "app.js").read_bytes())
+        elif self.path == "/audio.js":
+            self._send(200, "application/javascript; charset=utf-8", (WEB_DIR / "audio.js").read_bytes())
         elif self.path == "/state":
             body = json.dumps(self.server.runner.get_snapshot()).encode("utf-8")
             self._send(200, "application/json", body)
