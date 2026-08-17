@@ -227,6 +227,87 @@ function render(data) {
   drawQueen(data.nest, data.queen, scaleX, scaleY);
 }
 
+function clockOf(t) {
+  const m = Math.floor(t / 60), s = Math.floor(t % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function renderChronicle(data) {
+  const el = document.getElementById("chronicle");
+  el.innerHTML = "";
+  for (const entry of data.chronicle.slice().reverse()) {
+    const li = document.createElement("li");
+    if (entry.major) li.className = "major";
+    const stamp = document.createElement("span");
+    stamp.className = "stamp";
+    stamp.textContent = clockOf(entry.t);
+    li.appendChild(stamp);
+    li.appendChild(document.createTextNode(entry.text));
+    if (entry.repeat > 1) {
+      const rep = document.createElement("span");
+      rep.className = "repeat";
+      rep.textContent = ` ×${entry.repeat}`;
+      li.appendChild(rep);
+    }
+    el.appendChild(li);
+  }
+}
+
+function renderSaga(data) {
+  const el = document.getElementById("saga-chapters");
+  el.innerHTML = "";
+
+  const rows = data.saga.chapters.map((c) => ({
+    title: c.title, meta: `${clockOf(c.started_t)} · ${Math.round(c.duration)}s`, ongoing: false,
+  }));
+  if (data.chapter.active) {
+    rows.push({
+      title: data.chapter.title,
+      meta: `${clockOf(data.chapter.started_t ?? 0)} · now`,
+      ongoing: true,
+    });
+  }
+
+  if (rows.length === 0) {
+    const p = document.createElement("div");
+    p.id = "saga-empty";
+    p.textContent = "The colony has no story yet.";
+    el.appendChild(p);
+  } else {
+    for (const r of rows) {
+      const li = document.createElement("li");
+      if (r.ongoing) li.className = "ongoing";
+      const t = document.createElement("span");
+      t.className = "title";
+      t.textContent = r.title;
+      const m = document.createElement("span");
+      m.className = "meta";
+      m.textContent = r.meta;
+      li.appendChild(t);
+      li.appendChild(m);
+      el.appendChild(li);
+    }
+  }
+
+  const wrap = document.getElementById("saga-milestones-wrap");
+  const ml = document.getElementById("saga-milestones");
+  const stones = data.saga.milestones;
+  wrap.style.display = stones.length ? "block" : "none";
+  ml.innerHTML = "";
+  for (const m of stones) {
+    const li = document.createElement("li");
+    const t = document.createElement("span");
+    t.className = "title";
+    t.textContent = `${clockOf(m.t)}  ${m.title}`;
+    const d = document.createElement("span");
+    d.className = "text";
+    d.textContent = m.text;
+    li.appendChild(t);
+    li.appendChild(d);
+    ml.appendChild(li);
+  }
+}
+
 function updateSidebar(data) {
   document.getElementById("tick-readout").textContent = `tick ${data.tick} · t ${data.t.toFixed(1)}s`;
 
@@ -268,13 +349,8 @@ function updateSidebar(data) {
 
   document.getElementById("chapter-banner").textContent = data.chapter.active ? data.chapter.title : "A quiet colony, no chapter underway.";
 
-  const chronicleEl = document.getElementById("chronicle");
-  chronicleEl.innerHTML = "";
-  for (const line of data.chronicle.slice().reverse()) {
-    const li = document.createElement("li");
-    li.textContent = line;
-    chronicleEl.appendChild(li);
-  }
+  renderChronicle(data);
+  renderSaga(data);
 
   document.getElementById("m-deposits").textContent = data.metrics.food_deposits;
   document.getElementById("m-kills").textContent = data.metrics.enemy_kills;
@@ -287,8 +363,12 @@ function updateSidebar(data) {
   const overlay = document.getElementById("game-over-overlay");
   if (data.game_over) {
     overlay.classList.add("show");
+    document.getElementById("game-over-title").textContent =
+      data.ending === "colony_extinct" ? "The Nest Falls Silent" : "The Queen Is Dead";
+    document.getElementById("game-over-epitaph").textContent = data.ending_text || "";
     document.getElementById("game-over-sub").textContent =
-      `Survived ${data.t.toFixed(0)}s · ${data.metrics.enemy_kills} enemies killed · ${data.metrics.ants_born} ants born`;
+      `Survived ${clockOf(data.t)} · ${data.saga.chapters.length + (data.chapter.active ? 1 : 0)} chapters · `
+      + `${data.saga.milestones.length} milestones · ${data.metrics.enemy_kills} enemies killed`;
   } else {
     overlay.classList.remove("show");
   }

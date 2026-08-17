@@ -6,7 +6,7 @@ including the world, colony, enemies, and various subsystems.
 """
 
 from dataclasses import dataclass, field
-from typing import Tuple
+from typing import Optional, Tuple
 from config import SimConfig
 
 from colony.colony_state import ColonyState
@@ -31,6 +31,9 @@ class GameState:
     cfg: SimConfig
     t: float = 0.0
     tick: int = 0
+    # None while the colony's story is still running; set by the
+    # milestone tracker to the ending that closed it.
+    ending: Optional[str] = None
 
     terrain: TerrainMap = field(init=False)
     world: WorldMap = field(init=False)
@@ -55,7 +58,7 @@ class GameState:
         self.territory = TerritoryModel(self.cfg)
 
         self.colony = ColonyState(self.cfg)
-        self.history = HistoryLog()
+        self.history = HistoryLog(self.cfg.HISTORY_MAX_EVENTS, self.cfg.HISTORY_MAX_NOTABLE)
         self.milestones = MilestoneTracker(self.cfg)
         
         # Cache nest position

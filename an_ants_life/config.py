@@ -257,10 +257,21 @@ class SimConfig:
     CHAPTER_COOLDOWN_TICKS: int = 600
     CHAPTER_WINDOW_TICKS: int = 900
     CHAPTER_END_GRACE_TICKS: int = 360
+    # A chapter must run this long before anything can displace it, and
+    # the challenger has to fit clearly better rather than by a hair.
+    # Without both, the saga churned out chapters lasting 0-3 seconds -
+    # a list of titles rather than a story.
+    CHAPTER_MIN_TICKS: int = 300
+    CHAPTER_SUPERSEDE_MARGIN: float = 0.5
 
-    # Chronicle
+    # Chronicle / history
     CHRONICLE_SHOW: bool = True
     CHRONICLE_N_EVENTS: int = 12
+    # The raw log is a bounded ring: it was previously unbounded and grew
+    # for the whole session. MAJOR beats are kept separately and in full,
+    # so the saga survives regardless of this cap.
+    HISTORY_MAX_EVENTS: int = 600
+    HISTORY_MAX_NOTABLE: int = 240
 
     # Debug/HUD
     HUD_EVERY_TICKS: int = 15

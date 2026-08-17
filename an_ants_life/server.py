@@ -15,14 +15,26 @@ import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Optional
 
 from config import SimConfig
 from state import GameState
 from systems.time import Timekeeper
 from enemies.kinds import EnemyKind
+from colony.history import EventKind
+from colony.narrator import chronicle_lines
 
 WEB_DIR = Path(__file__).parent / "web"
 DEFAULT_PORT = 8765
+
+
+def _ending_text(state: GameState) -> Optional[str]:
+    if state.ending is None:
+        return None
+    for ev in reversed(state.history.saga):
+        if ev.kind == EventKind.ENDING:
+            return ev.data.get("text")
+    return None
 
 
 def _count_kinds(enemies) -> dict:
@@ -43,7 +55,7 @@ def _build_snapshot(state: GameState, paused: bool) -> dict:
         "tick": state.tick,
         "t": round(state.t, 2),
         "paused": paused,
-        "game_over": colony.queen.hp <= 0,
+        "game_over": state.ending is not None,
         "world": {"w": cfg.WORLD_W, "h": cfg.WORLD_H},
         # Static for the life of a map; sent as a compact digit string
         # (column-major) rather than an array of ints.
@@ -90,8 +102,30 @@ def _build_snapshot(state: GameState, paused: bool) -> dict:
             "food": [round(v, 3) for col in phero.grids["food"] for v in col],
             "home": [round(v, 3) for col in phero.grids["home"] for v in col],
         },
-        "chapter": {"active": chapter.active, "title": chapter.title if chapter.active else None},
-        "chronicle": [e.headline() for e in state.history.recent(10)],
+        "chapter": {
+            "active": chapter.active,
+            "title": chapter.title if chapter.active else None,
+            "started_t": round(chapter.started_t, 1) if chapter.active else None,
+        },
+        # Narrated, and filtered to events that carry the story - a plain
+        # tail of the log is ~82% routine foraging and combat churn.
+        "chronicle": [
+            {"t": round(l["t"], 1), "text": l["text"], "major": l["major"], "repeat": l["repeat"]}
+            for l in chronicle_lines(state.history, 14)
+        ],
+        "saga": {
+            "chapters": [
+                {"title": c.title, "started_t": round(c.started_t, 1),
+                 "duration": round(c.duration, 1)}
+                for c in state.milestones.past_chapters
+            ],
+            "milestones": [
+                {"title": m["title"], "text": m["text"], "t": round(m["t"], 1)}
+                for m in state.milestones.milestones
+            ],
+        },
+        "ending": state.ending,
+        "ending_text": _ending_text(state),
     }
 
 
@@ -124,7 +158,7 @@ class SimRunner:
                 self._restart_requested = False
                 self.paused = False
 
-            if not self.paused and self.state.colony.queen.hp > 0:
+            if not self.paused and self.state.ending is None:
                 self.state.step(dt)
 
             self.snapshot = _build_snapshot(self.state, self.paused)

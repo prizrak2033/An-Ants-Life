@@ -1,14 +1,21 @@
 """
-Chronicle: renders the most recent notable history events as a short
-console readout, giving color to what's driving the current chapter.
+Chronicle: the recent story, as prose.
+
+Reads the significant events only. Routine foraging and combat churn
+account for the large majority of the log, so a plain tail of the event
+list showed nothing but noise.
 """
 from __future__ import annotations
 
+from colony.narrator import chronicle_lines
+
 
 def format_chronicle(state) -> str:
-    cfg = state.cfg
-    events = state.history.recent(cfg.CHRONICLE_N_EVENTS)
-    if not events:
+    lines = chronicle_lines(state.history, state.cfg.CHRONICLE_N_EVENTS)
+    if not lines:
         return ""
-    lines = "; ".join(e.headline() for e in events[-3:])
-    return f"    chronicle: {lines}"
+    out = []
+    for l in lines[-3:]:
+        suffix = f" (x{l['repeat']})" if l["repeat"] > 1 else ""
+        out.append(f"    · {l['text']}{suffix}")
+    return "\n".join(out)

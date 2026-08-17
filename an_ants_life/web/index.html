@@ -209,6 +209,41 @@
     border-left: 2px solid var(--border);
     padding-left: 8px;
   }
+  #chronicle li.major {
+    border-left-color: var(--food);
+    color: var(--ink);
+  }
+  #chronicle .repeat {
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  #chronicle .stamp {
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+    margin-right: 6px;
+  }
+
+  #saga-chapters {
+    list-style: none;
+    margin: 0; padding: 0;
+    font-size: 12px;
+    display: flex; flex-direction: column; gap: 7px;
+  }
+  #saga-chapters li { display: flex; gap: 8px; align-items: baseline; }
+  #saga-chapters .title { color: var(--ink); }
+  #saga-chapters .meta { color: var(--ink-muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+  #saga-chapters li.ongoing .title { font-style: italic; color: var(--food); }
+
+  #saga-milestones {
+    list-style: none;
+    margin: 0; padding: 0;
+    font-size: 12px;
+    display: flex; flex-direction: column; gap: 7px;
+  }
+  #saga-milestones .title { color: var(--ink); }
+  #saga-milestones .text { color: var(--ink-muted); display: block; }
+
+  #saga-empty { font-size: 12px; color: var(--ink-muted); font-style: italic; }
 
   #game-over-overlay {
     position: fixed;
@@ -223,9 +258,21 @@
   }
   #game-over-overlay.show { display: flex; }
   #game-over-overlay h2 {
-    font-size: 24px;
+    font-size: 26px;
     color: var(--critical);
     margin: 0;
+  }
+  #game-over-epitaph {
+    font-size: 15px;
+    font-style: italic;
+    color: var(--ink);
+    max-width: 30rem;
+    text-align: center;
+    line-height: 1.5;
+  }
+  #game-over-sub {
+    color: var(--ink-secondary);
+    font-size: 13px;
   }
 </style>
 </head>
@@ -306,6 +353,15 @@
       </div>
 
       <div class="panel">
+        <h2>The Saga</h2>
+        <ol id="saga-chapters"></ol>
+        <div id="saga-milestones-wrap" style="display:none">
+          <h2 style="margin-top:16px">Milestones</h2>
+          <ul id="saga-milestones"></ul>
+        </div>
+      </div>
+
+      <div class="panel">
         <h2>Lifetime</h2>
         <div class="row"><span class="label">Food gathered</span><span class="value" id="m-deposits">0</span></div>
         <div class="row"><span class="label">Enemies killed</span><span class="value" id="m-kills">0</span></div>
@@ -317,8 +373,9 @@
   </main>
 
   <div id="game-over-overlay">
-    <h2>Queen Eliminated</h2>
-    <div id="game-over-sub" style="color: var(--ink-secondary); font-size: 13px;"></div>
+    <h2 id="game-over-title">The Queen Is Dead</h2>
+    <div id="game-over-epitaph"></div>
+    <div id="game-over-sub"></div>
     <button id="game-over-restart">Start a new colony</button>
   </div>
 
