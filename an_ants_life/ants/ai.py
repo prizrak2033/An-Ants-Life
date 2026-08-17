@@ -81,28 +81,37 @@ def choose_intent(state: 'GameState', ant: 'Ant') -> Intent:
         # patrol around nest
         return Intent(target=_rand_point(cfg, nest[0], nest[1], 18.0), deposit_channel="home")
 
-    # Workers: forage when empty, return home when carrying
+    # Workers: forage when empty, return home when carrying.
+    #
+    # Trail roles follow the standard stigmergy invariant: only an ant
+    # actually carrying food lays the "food" trail (marking the route back
+    # to a real source), while searching ants lay "home" breadcrumbs and
+    # climb the food gradient outward to get recruited to that source.
     if ant.role == Role.WORKER:
         if ant.carrying > 0:
-            return Intent(target=nest, deposit_channel="home")
+            return Intent(target=nest, deposit_channel="food")
         # sense nearby food directly
         src = state.world.nearest_food((ant.x, ant.y), cfg.ANT_SENSE_RADIUS)
         if src is not None:
-            return Intent(target=(src.x, src.y), deposit_channel="food")
-        # bias toward food pheromone gradient (very light)
-        pt = state.pheromones.sample_best_direction("food", (ant.x, ant.y), step=cfg.PHERO_FOLLOW_STEP)
+            return Intent(target=(src.x, src.y), deposit_channel="home")
+        # follow a real forager's trail outward toward its source
+        pt = state.pheromones.sample_best_direction(
+            "food", (ant.x, ant.y), step=cfg.PHERO_FOLLOW_STEP, away_from=nest
+        )
         if pt is not None:
-            return Intent(target=pt, deposit_channel="food")
+            return Intent(target=pt, deposit_channel="home")
         # wander, persisting heading so exploration actually covers ground
-        return Intent(target=_wander_point(cfg, ant, 20.0), deposit_channel="food")
+        return Intent(target=_wander_point(cfg, ant, 20.0), deposit_channel="home")
 
-    # Scouts: wide roam, sense food, mark home lightly, return home when carrying
+    # Scouts: wide roam, sense food, return home when carrying
     if ant.carrying > 0:
-        return Intent(target=nest, deposit_channel="home")
+        return Intent(target=nest, deposit_channel="food")
     src = state.world.nearest_food((ant.x, ant.y), cfg.ANT_SENSE_RADIUS)
     if src is not None:
-        return Intent(target=(src.x, src.y), deposit_channel="food")
-    pt = state.pheromones.sample_best_direction("food", (ant.x, ant.y), step=cfg.PHERO_FOLLOW_STEP)
+        return Intent(target=(src.x, src.y), deposit_channel="home")
+    pt = state.pheromones.sample_best_direction(
+        "food", (ant.x, ant.y), step=cfg.PHERO_FOLLOW_STEP, away_from=nest
+    )
     if pt is not None and random.random() < 0.4:
-        return Intent(target=pt, deposit_channel="food")
+        return Intent(target=pt, deposit_channel="home")
     return Intent(target=_wander_point(cfg, ant, 42.0, turn_spread=0.25), deposit_channel="home")

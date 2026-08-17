@@ -94,6 +94,8 @@
     min-width: 0;
   }
 
+  .stage-inner { max-width: 100%; }
+
   #world {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -102,6 +104,20 @@
     max-width: 100%;
     height: auto;
   }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--ink-secondary);
+  }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .legend .key {
+    width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0;
+  }
+  .legend .key-sq { border-radius: 2px; width: 16px; }
 
   aside {
     width: 300px;
@@ -224,7 +240,19 @@
 
   <main>
     <div class="stage">
-      <canvas id="world" width="960" height="560"></canvas>
+      <div class="stage-inner">
+        <canvas id="world" width="960" height="560"></canvas>
+        <div class="legend">
+          <span><i class="key" style="background:var(--role-worker)"></i>Worker</span>
+          <span><i class="key" style="background:var(--role-scout)"></i>Scout</span>
+          <span><i class="key" style="background:var(--role-soldier)"></i>Soldier</span>
+          <span><i class="key" style="background:var(--enemy)"></i>Red ant</span>
+          <span><i class="key" style="background:var(--food)"></i>Food</span>
+          <span><i class="key key-sq" style="background:#fab219"></i>Supply trail</span>
+          <span><i class="key key-sq" style="background:#9aa4b2"></i>Explored</span>
+          <span><i class="key key-sq" style="background:linear-gradient(90deg,#e66767,#383835,#3987e5)"></i>Territory&nbsp;(enemy→colony)</span>
+        </div>
+      </div>
     </div>
 
     <aside>

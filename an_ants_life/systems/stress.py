@@ -19,7 +19,7 @@ def update_stress(state, dt: float) -> None:
     colony.emergency["hunger"] = hunger
     colony.emergency["food_reserve_target"] = reserve_target
 
-    state.world.maybe_respawn_food()
+    state.world.maybe_respawn_food(dt)
 
     pressure = colony.emergency.get("territory_pressure", 0.0)
 

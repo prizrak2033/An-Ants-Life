@@ -62,10 +62,25 @@ class PheromoneSystem:
             self.grids[channel] = new_grid
 
     def sample_best_direction(
-        self, channel: str, pos: Tuple[float, float], step: float
+        self, channel: str, pos: Tuple[float, float], step: float,
+        away_from: Optional[Tuple[float, float]] = None,
     ) -> Optional[Tuple[float, float]]:
+        """Climb the strongest nearby gradient in `channel`.
+
+        `away_from` (typically the nest) restricts the search to cells no
+        closer to that point than the caller already is. A laden ant lays
+        its trail walking food -> nest, and near the nest every trail
+        superimposes, so the nest end is always the global maximum -
+        plain gradient-climbing would walk foragers inward, back to the
+        one place with no food. Constraining the step outward makes a
+        trail lead to its source instead of its destination.
+        """
         x, y = pos
         cx, cy = self._cell_of(x, y)
+
+        cur_dist = None
+        if away_from is not None:
+            cur_dist = math.hypot(x - away_from[0], y - away_from[1])
 
         best_dir = None
         best_level = 1e-3  # ignore near-empty trails
@@ -73,10 +88,17 @@ class PheromoneSystem:
             for dy in (-1, 0, 1):
                 if dx == 0 and dy == 0:
                     continue
-                level = self._level_at_cell(channel, cx + dx, cy + dy)
-                if level > best_level:
-                    best_level = level
-                    best_dir = (dx, dy)
+                ncx, ncy = cx + dx, cy + dy
+                level = self._level_at_cell(channel, ncx, ncy)
+                if level <= best_level:
+                    continue
+                if cur_dist is not None:
+                    wx = (ncx + 0.5) * self.cell
+                    wy = (ncy + 0.5) * self.cell
+                    if math.hypot(wx - away_from[0], wy - away_from[1]) < cur_dist:
+                        continue
+                best_level = level
+                best_dir = (dx, dy)
 
         if best_dir is None:
             return None

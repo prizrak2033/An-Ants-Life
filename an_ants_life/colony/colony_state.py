@@ -40,7 +40,7 @@ class ColonyState:
 
     def __post_init__(self):
         cfg = self.cfg
-        self.food_store = cfg.FOOD_PER_SOURCE * 0.6
+        self.food_store = cfg.INITIAL_FOOD_STORE
         self.queen = Queen(cfg.NEST_X, cfg.NEST_Y, cfg.QUEEN_HP_MAX, cfg.QUEEN_HP_MAX)
 
         # Build initial ants

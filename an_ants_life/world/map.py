@@ -54,10 +54,22 @@ class WorldMap:
                 return taken
         return 0.0
 
-    def maybe_respawn_food(self) -> None:
+    def maybe_respawn_food(self, dt: float) -> None:
+        """Retire exhausted sources and occasionally seed a fresh one.
+
+        Respawn is expressed as an average interval in seconds rather than
+        a per-tick probability so the food economy doesn't silently shift
+        with TARGET_FPS.
+        """
         cfg = self.cfg
-        active = sum(1 for s in self.food_sources if s.amount > 0)
-        if active >= cfg.INITIAL_FOOD_SOURCES:
+
+        # Exhausted piles are gone, not invisible forever: dropping them
+        # keeps the scan lists short and makes a claimed site something the
+        # colony has to re-earn rather than bank permanently.
+        if any(s.amount <= 0 for s in self.food_sources):
+            self.food_sources = [s for s in self.food_sources if s.amount > 0]
+
+        if len(self.food_sources) >= cfg.INITIAL_FOOD_SOURCES:
             return
-        if random.random() < cfg.FOOD_SOURCE_RESPAWN_CHANCE_PER_TICK:
+        if random.random() < dt / cfg.FOOD_SOURCE_RESPAWN_SECONDS:
             self._spawn_food_source()

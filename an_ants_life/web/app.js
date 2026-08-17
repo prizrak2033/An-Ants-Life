@@ -15,8 +15,12 @@ const QUEEN_COLOR = "#ffffff";
 const DIVERGING_BLUE = [57, 135, 229];   // friendly territory
 const DIVERGING_RED = [230, 103, 103];   // enemy territory
 const DIVERGING_GRAY = [56, 56, 53];     // contested / neutral
-const PHERO_FOOD_RGB = [57, 135, 229];   // blue, sequential
-const PHERO_HOME_RGB = [217, 89, 38];    // orange, sequential
+// The territory layer already owns blue<->red, so trails take colors from
+// outside that pair: gold ties the supply route to the food it carries,
+// and explored ground is a neutral wash that reads as ground covered
+// rather than as a third data series competing for attention.
+const PHERO_FOOD_RGB = [250, 178, 25];   // gold - active supply route
+const PHERO_HOME_RGB = [154, 164, 178];  // neutral - explored ground
 
 function lerp(a, b, t) { return a + (b - a) * t; }
 
@@ -41,14 +45,27 @@ function drawTerritory(terr, scaleX, scaleY) {
   ctx.globalAlpha = 1;
 }
 
-function drawPheromoneChannel(grid, cols, rows, cell, scaleX, scaleY, rgb) {
+// The two channels live on wildly different scales - only laden ants lay
+// the sparse "food" supply route (peaks well under 1), while every
+// searching ant lays "home" breadcrumbs continuously (peaks in the
+// hundreds). Normalizing each against its own peak keeps both legible
+// instead of one washing the map out and the other vanishing; `floor`
+// stops a nearly-empty channel from amplifying noise to full strength.
+function drawPheromoneChannel(grid, cols, rows, cell, scaleX, scaleY, rgb, maxAlpha, floor) {
+  let peak = floor;
+  for (let i = 0; i < grid.length; i++) {
+    if (grid[i] > peak) peak = grid[i];
+  }
+
   const cw = cell * scaleX, ch = cell * scaleY;
   const [r, g, b] = rgb;
   for (let cx = 0; cx < cols; cx++) {
     for (let cy = 0; cy < rows; cy++) {
       const v = grid[cx * rows + cy];
-      if (v < 0.05) continue;
-      const alpha = Math.min(0.55, v / 3.0);
+      if (v <= 0) continue;
+      // gamma < 1 lifts mid-strength trails into visibility
+      const alpha = maxAlpha * Math.pow(v / peak, 0.6);
+      if (alpha < 0.012) continue;
       ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
       ctx.fillRect(cx * cw, cy * ch, cw + 1, ch + 1);
     }
@@ -133,8 +150,10 @@ function render(data) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   drawTerritory(data.territory, scaleX, scaleY);
-  drawPheromoneChannel(data.pheromones.food, data.pheromones.cols, data.pheromones.rows, data.pheromones.cell, scaleX, scaleY, PHERO_FOOD_RGB);
-  drawPheromoneChannel(data.pheromones.home, data.pheromones.cols, data.pheromones.rows, data.pheromones.cell, scaleX, scaleY, PHERO_HOME_RGB);
+  const ph = data.pheromones;
+  // Ambient explored-area wash first, then supply routes on top of it.
+  drawPheromoneChannel(ph.home, ph.cols, ph.rows, ph.cell, scaleX, scaleY, PHERO_HOME_RGB, 0.14, 2.0);
+  drawPheromoneChannel(ph.food, ph.cols, ph.rows, ph.cell, scaleX, scaleY, PHERO_FOOD_RGB, 0.70, 0.15);
   drawNest(data.nest, scaleX, scaleY);
   drawFoodSources(data.food_sources, scaleX, scaleY);
   drawEnemies(data.enemies, scaleX, scaleY);

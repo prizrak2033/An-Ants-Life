@@ -32,8 +32,9 @@ class SimConfig:
 
     # Food sources
     INITIAL_FOOD_SOURCES: int = 6
-    FOOD_PER_SOURCE: float = 80.0
+    FOOD_PER_SOURCE: float = 30.0
     CARRY_CAPACITY: float = 1.0
+    INITIAL_FOOD_STORE: float = 40.0
 
     # Pheromones
     PHERO_GRID: int = 4
@@ -86,9 +87,9 @@ class SimConfig:
 
     # Enemies: Red ants
     REDANT_ENABLE: bool = True
-    REDANT_BASE_SPAWN_CHANCE_PER_TICK: float = 0.0035
+    REDANT_BASE_SPAWN_CHANCE_PER_TICK: float = 0.0028
     REDANT_SPAWN_PRESSURE_MULT: float = 1.0
-    REDANT_MAX_ALIVE: int = 6
+    REDANT_MAX_ALIVE: int = 5
     REDANT_SPEED: float = 28.0
     REDANT_HP: int = 3
     REDANT_TERR_INFLUENCE: float = 0.16
@@ -106,25 +107,54 @@ class SimConfig:
     REDANT_ATK: int = 1
 
     # Economy
+    #
+    # World food regeneration is the colony's real budget, and it sets the
+    # equilibrium population: roughly
+    #   (FOOD_PER_SOURCE / FOOD_SOURCE_RESPAWN_SECONDS) / FOOD_UPKEEP_PER_ANT_PER_SEC
+    # Note the naive figure overstates it: measured over long runs, combat
+    # attrition spends ~2/3 of the food budget on replacement births (at
+    # GROWTH_EGG_FOOD_COST each), so the realised equilibrium is roughly a
+    # third of that. At these values the world carries ~20-40 ants. Retune
+    # the respawn interval, not the ants, to change how big a colony the
+    # world can support.
     FOOD_UPKEEP_PER_ANT_PER_SEC: float = 0.015
     FOOD_RESERVE_BUFFER_SEC: float = 60.0
     FOOD_SOURCE_MIN_DIST_FROM_NEST: float = 20.0
-    FOOD_SOURCE_RESPAWN_CHANCE_PER_TICK: float = 0.01
+    FOOD_SOURCE_RESPAWN_SECONDS: float = 38.0
 
     # Growth
     GROWTH_ENABLE: bool = True
     GROWTH_EGG_FOOD_COST: float = 6.0
-    GROWTH_SURPLUS_MULT: float = 1.5  # food_store must exceed reserve_target * this to lay an egg
+    # Food store must exceed reserve_target * this to lay an egg. Sized to
+    # damp overshoot: the colony starts on a one-time windfall (initial
+    # store plus standing food) far larger than the sustainable regen rate,
+    # and a thinner cushion converts that windfall into a population the
+    # world cannot feed, which then crashes well past equilibrium.
+    GROWTH_SURPLUS_MULT: float = 2.5
     GROWTH_MIN_TICKS_BETWEEN_BIRTHS: int = 90
     GROWTH_MAX_POPULATION: int = 60
-    GROWTH_WORKER_WEIGHT: float = 0.78
-    GROWTH_SCOUT_WEIGHT: float = 0.09
-    GROWTH_SOLDIER_WEIGHT: float = 0.13
+
+    # Caste production seeks these fractions rather than rolling fixed
+    # weights: combat deaths and famine reassignment both drain soldiers,
+    # and a fixed weight can't refill a caste that has hit zero. The
+    # soldier target scales toward the threat value as border pressure
+    # rises, so a colony under attack raises defenders.
+    GROWTH_TARGET_SCOUT_FRAC: float = 0.08
+    GROWTH_TARGET_SOLDIER_FRAC: float = 0.18
+    GROWTH_THREAT_SOLDIER_FRAC: float = 0.32
 
     # Queen/Colony health (2)
     QUEEN_HP_MAX: int = 40
     QUEEN_THREAT_RADIUS: float = 6.0
     QUEEN_DAMAGE_PER_HIT: int = 2
+
+    # Without regeneration queen HP is a one-way ratchet and every long
+    # run ends in her death regardless of how well the colony plays. She
+    # recovers only while the colony is fed and the nest is clear, so
+    # surviving damage is earned through the food economy.
+    QUEEN_REGEN_PER_SEC: float = 0.20
+    QUEEN_REGEN_MAX_HUNGER: float = 0.50
+    QUEEN_REGEN_SAFE_RADIUS: float = 14.0
 
     # Objectives (3)
     OBJ_ENABLE: bool = True
