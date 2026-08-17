@@ -14,6 +14,7 @@ from colony.history import HistoryLog
 from colony.milestones import MilestoneTracker
 from colony.directives import DirectiveBoard
 from colony.policy import ColonyPolicy
+from colony.naming import colony_name
 
 from world.map import WorldMap
 from world.pheromones import PheromoneSystem
@@ -37,6 +38,8 @@ class GameState:
     # None while the colony's story is still running; set by the
     # milestone tracker to the ending that closed it.
     ending: Optional[str] = None
+    # Names the colony in the archive, so past runs are distinguishable.
+    colony_name: Optional[str] = None
 
     terrain: TerrainMap = field(init=False)
     world: WorldMap = field(init=False)
@@ -70,6 +73,9 @@ class GameState:
         
         # Cache nest position
         self.nest_pos = (self.cfg.NEST_X, self.cfg.NEST_Y)
+
+        if self.colony_name is None:
+            self.colony_name = colony_name()
 
     def step(self, dt: float) -> None:
         """Advance the simulation by one tick. Shared by every runner

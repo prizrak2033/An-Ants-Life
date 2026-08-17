@@ -69,6 +69,9 @@ const layers = { terrain: true, territory: true, trails: true, directives: true 
 // Sliders are player-owned while being dragged: echoing the server's
 // value back into a control the user is holding fights their input.
 let sliderHeld = null;
+// Which finished colony the player has waved away, so the epitaph does
+// not pop back on the next poll while they look over the final map.
+let dismissedEnding = null;
 
 function lerp(a, b, t) { return a + (b - a) * t; }
 
@@ -420,6 +423,8 @@ function renderPolicy(data) {
 
 function updateSidebar(data) {
   document.getElementById("tick-readout").textContent = `tick ${data.tick} · t ${data.t.toFixed(1)}s`;
+  document.getElementById("colony-name").textContent = data.colony_name || "";
+  if (data.save_note) document.getElementById("save-note").textContent = data.save_note;
 
   let workers = 0, scouts = 0, soldiers = 0;
   for (const [, , role] of data.ants) {
@@ -438,15 +443,22 @@ function updateSidebar(data) {
   const pop = data.colony.population;
   const capacity = data.colony.carrying_capacity || 0;
   const balance = data.colony.food_balance || 0;
-  const over = capacity > 0 && pop > capacity;
+  // Above the long-run line is only a problem if the colony is also
+  // losing ground. Early on it lives off standing food and legitimately
+  // runs well above the line while food piles up, and warning then was
+  // just contradicting the balance shown beside it.
+  const aboveLine = capacity > 0 && pop > capacity;
+  const struggling = aboveLine && balance < 0;
   document.getElementById("v-capacity").textContent = `${pop} / ${Math.round(capacity)}`;
   const capBar = document.getElementById("bar-capacity");
   capBar.style.width = `${Math.min(100, capacity > 0 ? (pop / capacity) * 100 : 0)}%`;
-  capBar.style.background = over ? "var(--critical)" : "var(--good)";
-  document.getElementById("capacity-badge").style.display = over ? "inline-block" : "none";
+  capBar.style.background = struggling ? "var(--critical)"
+    : (aboveLine ? "var(--food)" : "var(--good)");
+  document.getElementById("capacity-badge").style.display = struggling ? "inline-block" : "none";
   const sign = balance >= 0 ? "+" : "−";
   document.getElementById("capacity-note").innerHTML =
-    (over ? "Past what this world can feed. " : "")
+    (struggling ? "Past what this world can feed, and falling behind. "
+      : aboveLine ? "Above the long-run line, living off standing food. " : "")
     + `Food balance <b style="color:${balance >= 0 ? "var(--good)" : "var(--critical)"}">`
     + `${sign}${Math.abs(balance).toFixed(2)}/s</b>`;
 
@@ -493,7 +505,7 @@ function updateSidebar(data) {
 
   const overlay = document.getElementById("game-over-overlay");
   if (data.game_over) {
-    overlay.classList.add("show");
+    if (dismissedEnding !== data.colony_name) overlay.classList.add("show");
     document.getElementById("game-over-title").textContent =
       data.ending === "colony_extinct" ? "The Nest Falls Silent" : "The Queen Is Dead";
     document.getElementById("game-over-epitaph").textContent = data.ending_text || "";
@@ -502,6 +514,7 @@ function updateSidebar(data) {
       + `${data.saga.milestones.length} milestones · ${data.metrics.enemy_kills} enemies killed`;
   } else {
     overlay.classList.remove("show");
+    dismissedEnding = null;
   }
 }
 
@@ -523,6 +536,63 @@ async function sendControl(action) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action }),
   });
+}
+
+function clockOfSeconds(t) {
+  const m = Math.floor(t / 60), s = Math.floor(t % 60);
+  return `${m}m ${String(s).padStart(2, "0")}s`;
+}
+
+// Saves and the archive are files on disk, not part of the live tick, so
+// they are fetched on their own slower cadence rather than every frame.
+async function refreshSaves() {
+  try {
+    const rows = await (await fetch("/saves", { cache: "no-store" })).json();
+    const picker = document.getElementById("save-picker");
+    const keep = picker.value;
+    picker.innerHTML = '<option value="">— saved colonies —</option>';
+    for (const r of rows) {
+      const o = document.createElement("option");
+      o.value = r.name;
+      const who = r.colony ? `${r.colony} · ` : "";
+      o.textContent = `${r.label} (${who}${clockOfSeconds(r.t)}${r.ending ? " · ended" : ""})`;
+      picker.appendChild(o);
+    }
+    if ([...picker.options].some((o) => o.value === keep)) picker.value = keep;
+  } catch (err) { /* server busy; try again next cycle */ }
+}
+
+async function refreshArchive() {
+  try {
+    const rows = await (await fetch("/archive", { cache: "no-store" })).json();
+    const el = document.getElementById("archive-list");
+    el.innerHTML = "";
+    if (!rows.length) {
+      const p = document.createElement("div");
+      p.id = "archive-empty";
+      p.textContent = "No colony has finished its story yet.";
+      el.appendChild(p);
+      return;
+    }
+    for (const r of rows.slice().reverse()) {
+      const li = document.createElement("li");
+      const name = document.createElement("div");
+      name.className = "name";
+      name.textContent = r.colony || "A colony";
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = `${clockOfSeconds(r.duration)} · `
+        + `${(r.chapters || []).length} chapters · ${(r.milestones || []).length} milestones`;
+      li.append(name, meta);
+      if (r.ending_text) {
+        const ep = document.createElement("div");
+        ep.className = "epitaph";
+        ep.textContent = r.ending_text;
+        li.appendChild(ep);
+      }
+      el.appendChild(li);
+    }
+  } catch (err) { /* server busy; try again next cycle */ }
 }
 
 async function send(payload) {
@@ -651,7 +721,35 @@ document.addEventListener("keydown", (ev) => {
 document.getElementById("pause-btn").addEventListener("click", () => sendControl("pause_toggle"));
 document.getElementById("restart-btn").addEventListener("click", () => sendControl("restart"));
 document.getElementById("game-over-restart").addEventListener("click", () => sendControl("restart"));
+document.getElementById("game-over-dismiss").addEventListener("click", () => {
+  dismissedEnding = lastFrame ? lastFrame.colony_name : null;
+  document.getElementById("game-over-overlay").classList.remove("show");
+});
+
+document.getElementById("save-btn").addEventListener("click", async () => {
+  const el = document.getElementById("save-name");
+  const name = (el.value || "").trim() || (lastFrame && lastFrame.colony_name) || "colony";
+  await send({ action: "save", name });
+  el.value = "";
+  setTimeout(refreshSaves, 400);
+});
+document.getElementById("load-btn").addEventListener("click", async () => {
+  const name = document.getElementById("save-picker").value;
+  if (!name) return;
+  await send({ action: "load", name });
+  setTimeout(() => { refreshSaves(); refreshArchive(); }, 400);
+});
+document.getElementById("delete-save-btn").addEventListener("click", async () => {
+  const name = document.getElementById("save-picker").value;
+  if (!name) return;
+  await send({ action: "delete_save", name });
+  setTimeout(refreshSaves, 400);
+});
 
 setTool("none");
 poll();
 setInterval(poll, 120);
+refreshSaves();
+refreshArchive();
+setInterval(refreshSaves, 6000);
+setInterval(refreshArchive, 6000);

@@ -116,6 +116,25 @@
   }
   #layerbar .spacer { flex: 1; }
   #layer-hint { font-size: 11px; color: var(--ink-muted); margin-left: 4px; }
+  #savebar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 18px; border-bottom: 1px solid var(--border);
+    flex-shrink: 0; flex-wrap: wrap;
+  }
+  #savebar input[type=text], #savebar select {
+    background: var(--surface-2); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 9px; font-size: 12px;
+    font-family: inherit;
+  }
+  #savebar input[type=text] { width: 150px; }
+  #savebar select { min-width: 190px; }
+  #save-note { font-size: 11px; color: var(--food); font-style: italic; }
+
+  #colony-name {
+    font-size: 13px; color: var(--food); font-style: italic;
+  }
+
   button.layer {
     font-size: 12px;
     padding: 4px 11px;
@@ -149,6 +168,7 @@
     display: flex;
     min-height: 0;
     overflow: auto;
+    position: relative;   /* anchors the game-over overlay */
   }
 
   .stage {
@@ -325,8 +345,24 @@
   #directive-list .fade i { display: block; height: 100%; background: var(--food); }
   #directive-empty { font-size: 12px; color: var(--ink-muted); font-style: italic; }
 
+  #archive-list {
+    list-style: none; margin: 0; padding: 0;
+    font-size: 12px; display: flex; flex-direction: column; gap: 10px;
+    max-height: 260px; overflow-y: auto;
+  }
+  #archive-list li {
+    border-left: 2px solid var(--border); padding-left: 8px;
+  }
+  #archive-list .name { color: var(--ink); font-weight: 600; }
+  #archive-list .meta { color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+  #archive-list .epitaph { color: var(--ink-secondary); font-style: italic; }
+  #archive-empty { font-size: 12px; color: var(--ink-muted); font-style: italic; }
+
+  /* Covers the map only, not the toolbars. Spanning the whole viewport
+     meant an ended colony could not be saved, and no other colony could
+     be resumed, because the overlay swallowed every click. */
   #game-over-overlay {
-    position: fixed;
+    position: absolute;
     inset: 0;
     background: rgba(0,0,0,0.72);
     display: none;
@@ -336,6 +372,7 @@
     gap: 12px;
     z-index: 10;
   }
+  #game-over-overlay.dismissed { display: none !important; }
   #game-over-overlay.show { display: flex; }
   #game-over-overlay h2 {
     font-size: 26px;
@@ -359,6 +396,7 @@
 <body>
   <header>
     <h1>An Ant's Life</h1>
+    <span id="colony-name"></span>
     <span class="tick" id="tick-readout">tick 0 · t 0.0s</span>
     <div class="spacer"></div>
     <button id="rally-btn" title="Recall every ant to the nest. Foraging stops.">Recall</button>
@@ -388,6 +426,16 @@
     <div class="spacer"></div>
     <button id="layers-ants-only">Ants only</button>
     <button id="layers-all">Show all</button>
+  </div>
+
+  <div id="savebar">
+    <span class="tool-label">Colony</span>
+    <input type="text" id="save-name" placeholder="save name" maxlength="40">
+    <button id="save-btn">Save</button>
+    <select id="save-picker"><option value="">— saved colonies —</option></select>
+    <button id="load-btn">Resume</button>
+    <button id="delete-save-btn">Delete</button>
+    <span id="save-note"></span>
   </div>
 
   <main>
@@ -497,6 +545,11 @@
       </div>
 
       <div class="panel">
+        <h2>Past Colonies</h2>
+        <ul id="archive-list"></ul>
+      </div>
+
+      <div class="panel">
         <h2>Lifetime</h2>
         <div class="row"><span class="label">Food gathered</span><span class="value" id="m-deposits">0</span></div>
         <div class="row"><span class="label">Enemies killed</span><span class="value" id="m-kills">0</span></div>
@@ -505,14 +558,17 @@
         <div class="row"><span class="label">Raids survived</span><span class="value" id="m-raids">0</span></div>
       </div>
     </aside>
+    <div id="game-over-overlay">
+      <h2 id="game-over-title">The Queen Is Dead</h2>
+      <div id="game-over-epitaph"></div>
+      <div id="game-over-sub"></div>
+      <div style="display:flex; gap:8px">
+        <button id="game-over-restart">Start a new colony</button>
+        <button id="game-over-dismiss">View the map</button>
+      </div>
+    </div>
   </main>
 
-  <div id="game-over-overlay">
-    <h2 id="game-over-title">The Queen Is Dead</h2>
-    <div id="game-over-epitaph"></div>
-    <div id="game-over-sub"></div>
-    <button id="game-over-restart">Start a new colony</button>
-  </div>
 
   <script src="/app.js"></script>
 </body>

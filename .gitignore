@@ -35,3 +35,7 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Saved colonies and the archive of finished ones - local play data,
+# not source.
+saves/

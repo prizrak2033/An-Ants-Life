@@ -25,6 +25,7 @@ from enemies.kinds import EnemyKind
 from colony.history import EventKind
 from colony.narrator import chronicle_lines
 from colony.directives import DirectiveKind
+from persistence.store import SaveStore
 
 WEB_DIR = Path(__file__).parent / "web"
 DEFAULT_PORT = 8765
@@ -46,7 +47,7 @@ def _count_kinds(enemies) -> dict:
     return counts
 
 
-def _build_snapshot(state: GameState, paused: bool) -> dict:
+def _build_snapshot(state: GameState, paused: bool, save_note: Optional[str] = None) -> dict:
     cfg = state.cfg
     colony = state.colony
     chapter = state.milestones.chapter
@@ -151,6 +152,8 @@ def _build_snapshot(state: GameState, paused: bool) -> dict:
         },
         "ending": state.ending,
         "ending_text": _ending_text(state),
+        "colony_name": state.colony_name,
+        "save_note": save_note,
     }
 
 
@@ -172,6 +175,10 @@ class SimRunner:
         self.snapshot: dict = _build_snapshot(self.state, self.paused)
         # deque.append / popleft are atomic under the GIL, so no lock.
         self._commands: Deque[dict] = deque()
+        self.store = SaveStore()
+        self._next_autosave_t = self.cfg.AUTOSAVE_EVERY_SECONDS
+        self._archived_run = False
+        self.last_save_note: Optional[str] = None
 
     def submit(self, cmd: dict) -> None:
         """Called from HTTP threads; never touches simulation state."""
@@ -200,8 +207,18 @@ class SimRunner:
         if action == "pause_toggle":
             self.paused = not self.paused
         elif action == "restart":
+            self._archive_if_finished()
             self.state = GameState(cfg)
             self.paused = False
+            self._reset_save_cycle()
+        elif action == "save":
+            name = str(cmd.get("name") or "autosave")
+            self.store.save(state, name)
+            self.last_save_note = f"Saved as “{name}”."
+        elif action == "load":
+            self._load(str(cmd.get("name") or "autosave"))
+        elif action == "delete_save":
+            self.store.delete_save(str(cmd.get("name") or ""))
         elif action == "place_directive":
             self._place(state, cmd)
         elif action == "remove_directive":
@@ -254,6 +271,38 @@ class SimRunner:
             {}, cause="player_order", tags=["rally"]
         )
 
+    def _reset_save_cycle(self) -> None:
+        self._next_autosave_t = self.state.t + self.cfg.AUTOSAVE_EVERY_SECONDS
+        self._archived_run = False
+
+    def _load(self, name: str) -> None:
+        try:
+            loaded = self.store.load(name)
+        except (ValueError, KeyError, TypeError):
+            self.last_save_note = "That save could not be read."
+            return
+        if loaded is None:
+            self.last_save_note = "No such save."
+            return
+        self.state = loaded
+        self.paused = False
+        # Leave the archive flag clear even for a finished colony: it may
+        # have been saved after ending but before it was ever filed.
+        # archive_colony dedups by run, so filing twice is harmless while
+        # never filing at all would silently lose the record.
+        self._reset_save_cycle()
+        self.last_save_note = f"Resumed “{name}”."
+
+    def _archive_if_finished(self) -> None:
+        """File a finished colony on the shelf, once."""
+        if self._archived_run or self.state.ending is None:
+            return
+        self._archived_run = True
+        try:
+            self.store.archive_colony(self.state)
+        except OSError:
+            pass  # a failed archive write must not stop the game
+
     def run_forever(self) -> None:
         while True:
             dt = self.clock.step()
@@ -262,7 +311,16 @@ class SimRunner:
             if not self.paused and self.state.ending is None:
                 self.state.step(dt)
 
-            self.snapshot = _build_snapshot(self.state, self.paused)
+            if self.state.ending is not None:
+                self._archive_if_finished()
+            elif self.cfg.AUTOSAVE_ENABLE and self.state.t >= self._next_autosave_t:
+                self._next_autosave_t = self.state.t + self.cfg.AUTOSAVE_EVERY_SECONDS
+                try:
+                    self.store.save(self.state, "autosave")
+                except OSError:
+                    pass  # keep playing even if the disk is unhappy
+
+            self.snapshot = _build_snapshot(self.state, self.paused, self.last_save_note)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -283,6 +341,15 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, "application/javascript; charset=utf-8", (WEB_DIR / "app.js").read_bytes())
         elif self.path == "/state":
             body = json.dumps(self.server.runner.get_snapshot()).encode("utf-8")
+            self._send(200, "application/json", body)
+        elif self.path == "/saves":
+            # Reads are safe against the sim thread's writes: saves are
+            # written to a temp file and renamed, so a reader sees either
+            # the old file or the new one, never a partial one.
+            body = json.dumps(self.server.runner.store.list_saves()).encode("utf-8")
+            self._send(200, "application/json", body)
+        elif self.path == "/archive":
+            body = json.dumps(self.server.runner.store.read_archive()).encode("utf-8")
             self._send(200, "application/json", body)
         else:
             self._send(404, "text/plain; charset=utf-8", b"not found")

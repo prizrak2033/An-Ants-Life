@@ -14,6 +14,7 @@ from state import GameState
 
 from colony.history import EventKind
 from colony.milestones import ChapterRecord
+from persistence.store import SaveStore
 from systems.time import Timekeeper
 
 from ui.hud import render_hud
@@ -30,7 +31,8 @@ def _ending_text(state) -> str:
 def _print_saga(state) -> None:
     """The colony's story, once it has one to tell."""
     tracker = state.milestones
-    print(f"\n  Survived {state.t:.0f}s · {len(state.colony.ants)} ants at the end")
+    print(f"\n  {state.colony_name} — survived {state.t:.0f}s · "
+          f"{len(state.colony.ants)} ants at the end")
 
     if tracker.milestones:
         print("\n  Milestones")
@@ -67,6 +69,12 @@ def run() -> None:
             render_hud(state)
             print(f"\n💀 {_ending_text(state)}")
             _print_saga(state)
+            # File it on the same shelf the web client reads, so a colony
+            # played from the terminal still leaves a record.
+            try:
+                SaveStore().archive_colony(state)
+            except OSError:
+                pass
             break
 
 

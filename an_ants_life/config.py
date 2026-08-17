@@ -293,12 +293,19 @@ class SimConfig:
     # Delivery rate is spiky per tick, so the carrying-capacity readout is
     # smoothed over roughly this long before being shown.
     CAPACITY_SMOOTHING_SECONDS: float = 25.0
-    # Share of world food regen left for upkeep after combat attrition
-    # takes its cut on replacement births - measured at roughly a third.
-    CAPACITY_ATTRITION_ALLOWANCE: float = 0.34
+    # Share of world food regen left for upkeep once combat attrition has
+    # taken its cut on replacement births. Calibrated against the
+    # populations runs actually settle at (~20-40) rather than from the
+    # attrition fraction alone, which put the line at 18 and flagged
+    # perfectly healthy colonies as over-extended.
+    CAPACITY_ATTRITION_ALLOWANCE: float = 0.55
 
     POLICY_MAX_SCOUT_FRAC: float = 0.35
     POLICY_MAX_SOLDIER_FRAC: float = 0.60
+
+    # Persistence
+    AUTOSAVE_ENABLE: bool = True
+    AUTOSAVE_EVERY_SECONDS: float = 30.0
 
     # Chronicle / history
     CHRONICLE_SHOW: bool = True
