@@ -16,6 +16,7 @@ from colony.milestones import MilestoneTracker
 from world.map import WorldMap
 from world.pheromones import PheromoneSystem
 from world.territory import TerritoryModel
+from world.terrain import TerrainMap
 
 from systems.enemies import update_enemies
 from systems.combat import update_combat
@@ -31,6 +32,7 @@ class GameState:
     t: float = 0.0
     tick: int = 0
 
+    terrain: TerrainMap = field(init=False)
     world: WorldMap = field(init=False)
     pheromones: PheromoneSystem = field(init=False)
     territory: TerritoryModel = field(init=False)
@@ -46,8 +48,10 @@ class GameState:
     nest_pos: Tuple[float, float] = field(init=False)
 
     def __post_init__(self) -> None:
-        self.world = WorldMap(self.cfg)
-        self.pheromones = PheromoneSystem(self.cfg)
+        # Terrain first: food placement and pheromone decay both read it.
+        self.terrain = TerrainMap(self.cfg)
+        self.world = WorldMap(self.cfg, self.terrain)
+        self.pheromones = PheromoneSystem(self.cfg, self.terrain)
         self.territory = TerritoryModel(self.cfg)
 
         self.colony = ColonyState(self.cfg)

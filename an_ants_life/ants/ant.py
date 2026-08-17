@@ -34,6 +34,8 @@ class Ant:
     carrying: float = 0.0
     hp: int = 3
     last_combat_tick: int = -10_000
+    detour_until_tick: int = -1
+    detour_side: int = 1
 
     def update(self, state: GameState, dt: float) -> None:
         """Update ant position, behavior, and interactions each frame."""
@@ -46,20 +48,35 @@ class Ant:
         elif intent.deposit_channel == "home":
             state.pheromones.deposit("home", (self.x, self.y), cfg.HOME_PHERO_DEPOSIT_AMOUNT)
 
-        # Movement
-        if intent.target is not None:
+        # Movement. While rounding an obstacle the ant holds its detour
+        # heading and ignores the target, otherwise it would turn straight
+        # back into the face it just hit.
+        detouring = state.tick < self.detour_until_tick
+        if intent.target is not None and not detouring:
             tx, ty = intent.target
             dx, dy = tx - self.x, ty - self.y
             d = math.hypot(dx, dy) + 1e-6
             nx, ny = dx / d, dy / d
-            speed = cfg.ANT_SPEED
+            speed = cfg.ANT_SPEED * state.terrain.speed_mult(self.x, self.y)
             self.vx, self.vy = nx * speed, ny * speed
 
-        self.x += self.vx * dt
-        self.y += self.vy * dt
+        terrain = state.terrain
+        px = _clamp(self.x + self.vx * dt, 0, cfg.WORLD_W)
+        py = _clamp(self.y + self.vy * dt, 0, cfg.WORLD_H)
+        (self.x, self.y), blocked = terrain.move(self.x, self.y, px, py)
 
-        self.x = _clamp(self.x, 0, cfg.WORLD_W)
-        self.y = _clamp(self.y, 0, cfg.WORLD_H)
+        if blocked:
+            # Hold the side chosen when this encounter began, so the ant
+            # works its way around one face instead of alternating.
+            if not detouring:
+                self.detour_side = 1 if (self.id & 1) else -1
+            turned = terrain.deflect(self.x, self.y, self.vx, self.vy, dt, self.detour_side)
+            if turned is not None:
+                self.vx, self.vy, self.detour_side = turned
+                self.detour_until_tick = state.tick + cfg.TERRAIN_DETOUR_TICKS
+                px = _clamp(self.x + self.vx * dt, 0, cfg.WORLD_W)
+                py = _clamp(self.y + self.vy * dt, 0, cfg.WORLD_H)
+                (self.x, self.y), _ = terrain.move(self.x, self.y, px, py)
 
         self._handle_food_and_nest(state)
 

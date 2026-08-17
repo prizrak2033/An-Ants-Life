@@ -24,6 +24,39 @@ const DIVERGING_GRAY = [56, 56, 53];     // contested / neutral
 const PHERO_FOOD_RGB = [250, 178, 25];   // gold - active supply route
 const PHERO_HOME_RGB = [154, 164, 178];  // neutral - explored ground
 
+// Terrain, indexed by the wire codes in world/terrain.py's _ORDER.
+// Deliberately dark and low-chroma: this is the ground everything else is
+// read against, so it has to describe the map without competing with the
+// territory heatmap or the trails drawn on top of it. SOIL is null - it is
+// the base surface and gets left unpainted.
+const TERRAIN_FILL = [null, "#3a3125", "#243522", "#414147", "#123c4a"];
+
+// Static for the life of a map, so it is rasterized once and blitted.
+let terrainCache = { key: null, canvas: null };
+
+function terrainLayer(terr, w, h, scaleX, scaleY) {
+  const key = `${w}x${h}:${terr.tiles}`;
+  if (terrainCache.key === key) return terrainCache.canvas;
+
+  const off = document.createElement("canvas");
+  off.width = w;
+  off.height = h;
+  const c = off.getContext("2d");
+  const cw = terr.cell * scaleX, ch = terr.cell * scaleY;
+
+  for (let cx = 0; cx < terr.cols; cx++) {
+    for (let cy = 0; cy < terr.rows; cy++) {
+      const code = terr.tiles.charCodeAt(cx * terr.rows + cy) - 48;
+      const fill = TERRAIN_FILL[code];
+      if (!fill) continue;
+      c.fillStyle = fill;
+      c.fillRect(cx * cw, cy * ch, cw + 1, ch + 1);
+    }
+  }
+  terrainCache = { key, canvas: off };
+  return off;
+}
+
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 function divergingColor(v) {
@@ -39,8 +72,14 @@ function drawTerritory(terr, scaleX, scaleY) {
   for (let cx = 0; cx < terr.cols; cx++) {
     for (let cy = 0; cy < terr.rows; cy++) {
       const v = terr.grid[cx * terr.rows + cy];
+      // Fade with how decided the cell is, instead of a flat wash. A
+      // constant alpha painted neutral ground just as heavily as held
+      // ground, which blanketed the whole map and buried the terrain
+      // underneath; now contested ground shows the terrain through it.
+      const strength = Math.abs(v);
+      if (strength < 0.06) continue;
       ctx.fillStyle = divergingColor(v);
-      ctx.globalAlpha = 0.5;
+      ctx.globalAlpha = Math.min(0.55, strength * 0.62);
       ctx.fillRect(cx * cw, cy * ch, cw + 1, ch + 1);
     }
   }
@@ -173,6 +212,9 @@ function render(data) {
   ctx.fillStyle = "#1a1a19";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  if (data.terrain) {
+    ctx.drawImage(terrainLayer(data.terrain, canvas.width, canvas.height, scaleX, scaleY), 0, 0);
+  }
   drawTerritory(data.territory, scaleX, scaleY);
   const ph = data.pheromones;
   // Ambient explored-area wash first, then supply routes on top of it.

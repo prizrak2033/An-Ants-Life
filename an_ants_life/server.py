@@ -45,6 +45,14 @@ def _build_snapshot(state: GameState, paused: bool) -> dict:
         "paused": paused,
         "game_over": colony.queen.hp <= 0,
         "world": {"w": cfg.WORLD_W, "h": cfg.WORLD_H},
+        # Static for the life of a map; sent as a compact digit string
+        # (column-major) rather than an array of ints.
+        "terrain": {
+            "cell": cfg.TERRAIN_CELL,
+            "cols": state.terrain.cols,
+            "rows": state.terrain.rows,
+            "tiles": state.terrain.code_string(),
+        },
         "nest": [state.nest_pos[0], state.nest_pos[1]],
         "queen": {"hp": colony.queen.hp, "hp_max": colony.queen.hp_max},
         "colony": {

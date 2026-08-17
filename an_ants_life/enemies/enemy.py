@@ -25,6 +25,8 @@ class Enemy:
     vx: float = 0.0
     vy: float = 0.0
     last_combat_tick: int = -10_000
+    detour_until_tick: int = -1
+    detour_side: int = 1
 
     # Where it entered the map; a laden raider hauls its loot back here.
     spawn_x: float = 0.0

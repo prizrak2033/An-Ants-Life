@@ -41,6 +41,43 @@ class SimConfig:
     CARRY_CAPACITY: float = 1.0
     INITIAL_FOOD_STORE: float = 40.0
 
+    # Terrain / biomes
+    #
+    # Blobs are deliberately small and scattered rather than long walls:
+    # nothing in the game pathfinds, so an ant only gets past an obstacle
+    # by sliding along it, and a long wall would strand foragers behind it.
+    TERRAIN_ENABLE: bool = True
+    TERRAIN_CELL: int = 3
+    TERRAIN_NEST_CLEAR_RADIUS: float = 14.0
+
+    TERRAIN_ROCK_BLOBS: int = 8
+    TERRAIN_SAND_BLOBS: int = 5
+    TERRAIN_LITTER_BLOBS: int = 7
+    TERRAIN_BLOB_MIN_R: float = 4.0
+    TERRAIN_BLOB_MAX_R: float = 10.0
+
+    # Water is the only true barrier, so it is kept to a few small ponds -
+    # every unit of hard obstacle is surface for ants to jam against.
+    TERRAIN_WATER_BLOBS: int = 3
+    TERRAIN_WATER_MAX_R: float = 5.0
+
+    ROCK_SPEED_MULT: float = 0.45
+
+    # How long a mover commits to a detour heading after hitting a face.
+    # Without persistence it re-aims at the obstacle the very next tick
+    # and vibrates against it instead of travelling around.
+    TERRAIN_DETOUR_TICKS: int = 14
+
+    SAND_SPEED_MULT: float = 0.85
+    LITTER_SPEED_MULT: float = 0.95
+    # Sand is the interesting one: trails burn off far faster, so a supply
+    # line dragged across it needs constant traffic to survive.
+    SAND_PHERO_DECAY_MULT: float = 2.2
+    LITTER_PHERO_DECAY_MULT: float = 0.8
+    # How much more often food appears on leaf litter than bare ground,
+    # which is what makes a patch of ground worth holding.
+    LITTER_FOOD_BIAS: float = 5.0
+
     # Pheromones
     PHERO_GRID: int = 4
     PHERO_DIFFUSE: float = 0.10

@@ -17,7 +17,7 @@ from colony.history import EventKind
 _KINDS = (EnemyKind.WARRIOR, EnemyKind.RAIDER, EnemyKind.PREDATOR)
 
 
-def _spawn_point(cfg) -> Tuple[float, float]:
+def _random_edge_point(cfg) -> Tuple[float, float]:
     edge = random.choice(("top", "bottom", "left", "right"))
     if edge == "top":
         return random.uniform(0, cfg.WORLD_W), 0.0
@@ -28,12 +28,40 @@ def _spawn_point(cfg) -> Tuple[float, float]:
     return float(cfg.WORLD_W), random.uniform(0, cfg.WORLD_H)
 
 
-def _steer(cfg, enemy: Enemy, tx: float, ty: float, dt: float) -> None:
-    dx, dy = tx - enemy.x, ty - enemy.y
-    d = math.hypot(dx, dy) + 1e-6
-    enemy.vx, enemy.vy = (dx / d) * enemy.speed, (dy / d) * enemy.speed
-    enemy.x = min(max(0.0, enemy.x + enemy.vx * dt), cfg.WORLD_W)
-    enemy.y = min(max(0.0, enemy.y + enemy.vy * dt), cfg.WORLD_H)
+def _spawn_point(state, cfg) -> Optional[Tuple[float, float]]:
+    """A passable point on the border, or None if the border is walled
+    off here. Spawning inside rock would strand the enemy permanently -
+    it cannot slide out of a tile it is already stuck in - and it would
+    hold an enemy slot forever."""
+    for _ in range(24):
+        x, y = _random_edge_point(cfg)
+        if state.terrain.passable(x, y):
+            return x, y
+    return None
+
+
+def _steer(state, cfg, enemy: Enemy, tx: float, ty: float, dt: float) -> None:
+    terrain = state.terrain
+    if state.tick >= enemy.detour_until_tick:
+        dx, dy = tx - enemy.x, ty - enemy.y
+        d = math.hypot(dx, dy) + 1e-6
+        speed = enemy.speed * terrain.speed_mult(enemy.x, enemy.y)
+        enemy.vx, enemy.vy = (dx / d) * speed, (dy / d) * speed
+
+    px = min(max(0.0, enemy.x + enemy.vx * dt), cfg.WORLD_W)
+    py = min(max(0.0, enemy.y + enemy.vy * dt), cfg.WORLD_H)
+    (enemy.x, enemy.y), blocked = terrain.move(enemy.x, enemy.y, px, py)
+
+    if blocked:
+        if state.tick >= enemy.detour_until_tick:
+            enemy.detour_side = 1 if (enemy.id & 1) else -1
+        turned = terrain.deflect(enemy.x, enemy.y, enemy.vx, enemy.vy, dt, enemy.detour_side)
+        if turned is not None:
+            enemy.vx, enemy.vy, enemy.detour_side = turned
+            enemy.detour_until_tick = state.tick + cfg.TERRAIN_DETOUR_TICKS
+            px = min(max(0.0, enemy.x + enemy.vx * dt), cfg.WORLD_W)
+            py = min(max(0.0, enemy.y + enemy.vy * dt), cfg.WORLD_H)
+            (enemy.x, enemy.y), _ = terrain.move(enemy.x, enemy.y, px, py)
 
 
 def _nearest_ant(state, enemy: Enemy, radius: float):
@@ -74,7 +102,10 @@ def update_enemies(state, dt: float) -> None:
     spawn_chance = cfg.ENEMY_BASE_SPAWN_CHANCE_PER_TICK * (1.0 + pressure * cfg.ENEMY_SPAWN_PRESSURE_MULT)
 
     if len(state.enemies) < cfg.ENEMY_MAX_ALIVE and random.random() < spawn_chance:
-        x, y = _spawn_point(cfg)
+        point = _spawn_point(state, cfg)
+        if point is None:
+            return
+        x, y = point
         kind = _pick_kind(cfg)
         enemy = make_enemy(cfg, state._next_enemy_id, kind, x, y)
         state._next_enemy_id += 1
@@ -92,7 +123,7 @@ def update_enemies(state, dt: float) -> None:
         elif enemy.kind == EnemyKind.PREDATOR:
             _update_predator(state, cfg, enemy, dt)
         else:
-            _steer(cfg, enemy, state.nest_pos[0], state.nest_pos[1], dt)
+            _steer(state, cfg, enemy, state.nest_pos[0], state.nest_pos[1], dt)
 
     if any(e.escaped for e in state.enemies):
         state.enemies = [e for e in state.enemies if not e.escaped]
@@ -102,7 +133,7 @@ def _update_raider(state, cfg, enemy: Enemy, dt: float) -> None:
     if enemy.fleeing:
         # Hauls the loot back to where it entered rather than bolting for
         # whichever edge is nearest - that run is what soldiers intercept.
-        _steer(cfg, enemy, enemy.spawn_x, enemy.spawn_y, dt)
+        _steer(state, cfg, enemy, enemy.spawn_x, enemy.spawn_y, dt)
         if math.hypot(enemy.x - enemy.spawn_x, enemy.y - enemy.spawn_y) <= 1.0:
             enemy.escaped = True
             state.colony.metrics["food_stolen"] += enemy.carrying
@@ -126,7 +157,7 @@ def _update_raider(state, cfg, enemy: Enemy, dt: float) -> None:
                 _begin_flight(cfg, enemy, taken)
                 _emit_steal(state, enemy, taken, "nest_stores")
         else:
-            _steer(cfg, enemy, nest_x, nest_y, dt)
+            _steer(state, cfg, enemy, nest_x, nest_y, dt)
         return
 
     if math.hypot(enemy.x - src.x, enemy.y - src.y) <= cfg.RAIDER_STEAL_RADIUS:
@@ -136,7 +167,7 @@ def _update_raider(state, cfg, enemy: Enemy, dt: float) -> None:
             _begin_flight(cfg, enemy, taken)
             _emit_steal(state, enemy, taken, "food_source")
     else:
-        _steer(cfg, enemy, src.x, src.y, dt)
+        _steer(state, cfg, enemy, src.x, src.y, dt)
 
 
 def _load_up(state, cfg, enemy: Enemy, dt: float) -> bool:
@@ -169,7 +200,7 @@ def _emit_steal(state, enemy: Enemy, amount: float, target: str) -> None:
 def _update_predator(state, cfg, enemy: Enemy, dt: float) -> None:
     prey = _nearest_ant(state, enemy, cfg.PREDATOR_HUNT_RADIUS)
     if prey is not None:
-        _steer(cfg, enemy, prey.x, prey.y, dt)
+        _steer(state, cfg, enemy, prey.x, prey.y, dt)
         return
 
     # No prey in range: prowl, holding a heading so it sweeps ground
@@ -178,6 +209,6 @@ def _update_predator(state, cfg, enemy: Enemy, dt: float) -> None:
         heading = math.atan2(enemy.vy, enemy.vx) + random.uniform(-0.25, 0.25)
     else:
         heading = random.uniform(0, 2 * math.pi)
-    _steer(cfg, enemy,
+    _steer(state, cfg, enemy,
            enemy.x + math.cos(heading) * 20.0,
            enemy.y + math.sin(heading) * 20.0, dt)

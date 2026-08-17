@@ -7,15 +7,24 @@ import random
 from typing import List, Optional, Tuple
 
 from world.food import FoodSource
+from world.terrain import Terrain
 
 
 class WorldMap:
-    def __init__(self, cfg):
+    def __init__(self, cfg, terrain=None):
         self.cfg = cfg
+        self.terrain = terrain
         self.food_sources: List[FoodSource] = []
         self._next_food_id = 1
         for _ in range(cfg.INITIAL_FOOD_SOURCES):
             self._spawn_food_source()
+
+    def _candidate_ok(self, x: float, y: float) -> bool:
+        cfg = self.cfg
+        if math.hypot(x - cfg.NEST_X, y - cfg.NEST_Y) < cfg.FOOD_SOURCE_MIN_DIST_FROM_NEST:
+            return False
+        # Food inside rock or water would be unreachable by design.
+        return self.terrain is None or self.terrain.passable(x, y)
 
     def _spawn_food_source(self) -> None:
         cfg = self.cfg
@@ -24,11 +33,28 @@ class WorldMap:
         # they finished looting.
         m = cfg.FOOD_SOURCE_EDGE_MARGIN
         x, y = cfg.NEST_X, cfg.NEST_Y
-        for _ in range(20):
-            x = random.uniform(m, cfg.WORLD_W - m)
-            y = random.uniform(m, cfg.WORLD_H - m)
-            if math.hypot(x - cfg.NEST_X, y - cfg.NEST_Y) >= cfg.FOOD_SOURCE_MIN_DIST_FROM_NEST:
+
+        # Leaf litter is where food collects, so sample it preferentially -
+        # this is what makes a particular patch of ground worth holding
+        # rather than all open ground being interchangeable.
+        best = None
+        for _ in range(30):
+            cx = random.uniform(m, cfg.WORLD_W - m)
+            cy = random.uniform(m, cfg.WORLD_H - m)
+            if not self._candidate_ok(cx, cy):
+                continue
+            if best is None:
+                best = (cx, cy)
+            if self.terrain is None:
                 break
+            if self.terrain.at(cx, cy) == Terrain.LITTER:
+                best = (cx, cy)
+                break
+            if random.random() < 1.0 / cfg.LITTER_FOOD_BIAS:
+                break
+        if best is not None:
+            x, y = best
+
         self.food_sources.append(
             FoodSource(self._next_food_id, x, y, cfg.FOOD_PER_SOURCE)
         )

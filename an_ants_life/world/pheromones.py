@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple
 
 
 class PheromoneSystem:
-    def __init__(self, cfg):
+    def __init__(self, cfg, terrain=None):
         self.cfg = cfg
         self.cell = cfg.PHERO_GRID
         self.cols = max(1, int(cfg.WORLD_W // self.cell) + 1)
@@ -18,6 +18,17 @@ class PheromoneSystem:
             "food": [[0.0] * self.rows for _ in range(self.cols)],
             "home": [[0.0] * self.rows for _ in range(self.cols)],
         }
+
+        # Terrain never changes, so resolve each pheromone cell's decay
+        # multiplier once here rather than per tick in the decay loop.
+        if terrain is None:
+            self._decay_mult = [[1.0] * self.rows for _ in range(self.cols)]
+        else:
+            self._decay_mult = [
+                [terrain.decay_mult((cx + 0.5) * self.cell, (cy + 0.5) * self.cell)
+                 for cy in range(self.rows)]
+                for cx in range(self.cols)
+            ]
 
     def _cell_of(self, x: float, y: float) -> Tuple[int, int]:
         cx = min(self.cols - 1, max(0, int(x // self.cell)))
@@ -42,11 +53,12 @@ class PheromoneSystem:
         decay_rates = {"food": cfg.FOOD_PHERO_DECAY_PER_SEC, "home": cfg.HOME_PHERO_DECAY_PER_SEC}
 
         for channel, grid in self.grids.items():
-            decay = max(0.0, 1.0 - decay_rates[channel] * dt)
+            rate = decay_rates[channel] * dt
             new_grid = [[0.0] * self.rows for _ in range(self.cols)]
             for cx in range(self.cols):
+                mult_col = self._decay_mult[cx]
                 for cy in range(self.rows):
-                    v = grid[cx][cy] * decay
+                    v = grid[cx][cy] * max(0.0, 1.0 - rate * mult_col[cy])
                     if v < 1e-4:
                         continue
                     neighbor_sum = 0.0
