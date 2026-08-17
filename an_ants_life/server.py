@@ -22,6 +22,7 @@ from config import SimConfig
 from state import GameState
 from systems.time import Timekeeper
 from enemies.kinds import EnemyKind
+from ants.roles import Role
 from colony.history import EventKind
 from colony.narrator import chronicle_lines
 from colony.directives import DirectiveKind
@@ -38,6 +39,27 @@ def _ending_text(state: GameState) -> Optional[str]:
         if ev.kind == EventKind.ENDING:
             return ev.data.get("text")
     return None
+
+
+def _garrison(state: GameState) -> dict:
+    """Soldiers actually holding the nest.
+
+    Worth its own readout: every colony death measured, played or
+    passive, is the queen killed with this at zero. Nothing else in the
+    interface showed the number that decides the game.
+    """
+    nest_x, nest_y = state.nest_pos
+    radius_sq = 22.0 * 22.0
+    total = home = 0
+    for a in state.colony.ants:
+        if a.role is not Role.SOLDIER:
+            continue
+        total += 1
+        dx, dy = a.x - nest_x, a.y - nest_y
+        if dx * dx + dy * dy <= radius_sq:
+            home += 1
+    return {"home": home, "total": total,
+            "floor": state.cfg.DIRECTIVE_DEFEND_MIN_GARRISON}
 
 
 def _count_kinds(enemies) -> dict:
@@ -82,6 +104,7 @@ def _build_snapshot(state: GameState, paused: bool, save_note: Optional[str] = N
             "food_balance": round(colony.emergency.get("food_balance", 0.0), 3),
             "carrying_capacity": round(colony.emergency.get("carrying_capacity", 0.0), 1),
         },
+        "garrison": _garrison(state),
         "enemy_counts": _count_kinds(state.enemies),
         "metrics": dict(colony.metrics),
         # Ants/enemies/food are packed as flat arrays (not objects) to keep

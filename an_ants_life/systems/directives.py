@@ -17,6 +17,8 @@ recounting who is answering each one.
 """
 from __future__ import annotations
 
+from ants.roles import Role
+from colony.directives import DirectiveKind
 from colony.history import EventKind
 
 
@@ -50,3 +52,28 @@ def update_directives(state, dt: float) -> None:
     for ant in state.colony.ants:
         if ant.recruited_to is not None and ant.recruited_to not in live_ids:
             ant.recruited_to = None
+
+    _assign_defend_detachment(state)
+
+
+def _assign_defend_detachment(state) -> None:
+    """Decide which soldiers may leave for a defend mark.
+
+    Chosen here, once per tick, rather than per ant in the AI, because
+    the limit is about the group: a share of the guard *and* never
+    dropping the nest below an absolute floor. Selection is by sorted id
+    so membership is stable - a soldier that oscillates between post and
+    nest guards neither.
+    """
+    cfg = state.cfg
+    if not state.directives.of_kind(DirectiveKind.DEFEND):
+        state.colony.emergency["defend_detachment"] = frozenset()
+        return
+
+    soldiers = sorted((a for a in state.colony.ants if a.role is Role.SOLDIER),
+                      key=lambda a: a.id)
+    spare = len(soldiers) - cfg.DIRECTIVE_DEFEND_MIN_GARRISON
+    allowed = min(spare, int(len(soldiers) * cfg.DIRECTIVE_DEFEND_MAX_SHARE))
+    state.colony.emergency["defend_detachment"] = (
+        frozenset(a.id for a in soldiers[-allowed:]) if allowed > 0 else frozenset()
+    )

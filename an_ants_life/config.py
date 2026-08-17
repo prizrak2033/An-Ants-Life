@@ -283,11 +283,18 @@ class SimConfig:
     DIRECTIVE_RECRUIT_CAP: int = 8
     DIRECTIVE_RECRUIT_CHANCE_PER_SEC: float = 1.2
     DIRECTIVE_DEFEND_PATROL_RADIUS: float = 12.0
-    # A defend mark can only ever draw part of the guard. Letting it take
-    # every soldier left the queen with no garrison at all: measured over
-    # 8 seeds it halved survival (6/8 -> 3/8) and took her from 29 HP to
-    # 12. Posting a forward guard should be a trade, not a trap.
+    # A defend mark can only ever draw part of the guard, and never below
+    # an absolute floor at the nest.
+    #
+    # Both limits are load-bearing. Every colony death measured - in
+    # played and passive runs alike - is the queen being killed with the
+    # garrison at zero; starvation and border pressure are never the
+    # proximate cause. A proportional cap alone is not enough protection
+    # when the corps is small, because half of six is three, and a
+    # detachment of three still measured as decisive (7/12 surviving
+    # against 10/12 without it).
     DIRECTIVE_DEFEND_MAX_SHARE: float = 0.5
+    DIRECTIVE_DEFEND_MIN_GARRISON: int = 4
     DIRECTIVE_EXPLORE_ROAM_RADIUS: float = 26.0
 
     # Delivery rate is spiky per tick, so the carrying-capacity readout is

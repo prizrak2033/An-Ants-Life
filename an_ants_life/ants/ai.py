@@ -110,9 +110,10 @@ def choose_intent(state: 'GameState', ant: 'Ant', dt: float = 1.0 / 30.0) -> Int
         if e is not None:
             return Intent(target=(e.x, e.y), deposit_channel="home")
         # Patrol the nest, or a defend mark if the player has set a line.
-        # Only part of the guard may leave, decided per ant by a stable
-        # split so individuals don't oscillate between post and nest.
-        if (ant.id % 100) < cfg.DIRECTIVE_DEFEND_MAX_SHARE * 100:
+        # Membership of the detachment is decided once per tick for the
+        # guard as a whole, since the limit is a group property: a share
+        # of it, and never below a floor left at the nest.
+        if ant.id in state.colony.emergency.get("defend_detachment", ()):
             hold = board.nearest(DirectiveKind.DEFEND, ant.x, ant.y)
             if hold is not None:
                 return Intent(target=_rand_point(cfg, hold.x, hold.y,

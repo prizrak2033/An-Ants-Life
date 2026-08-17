@@ -464,6 +464,21 @@ function updateSidebar(data) {
 
   document.getElementById("v-food").textContent = data.colony.food_store.toFixed(1);
 
+  // The nest guard decides the game: every recorded colony death is the
+  // queen killed with this at zero, so it gets stated plainly.
+  const g = data.garrison || { home: 0, total: 0, floor: 0 };
+  document.getElementById("v-garrison").textContent = `${g.home} / ${g.total}`;
+  const bare = g.home === 0;
+  const thin = !bare && g.home < g.floor;
+  document.getElementById("garrison-badge").style.display = bare ? "inline-block" : "none";
+  const gnote = document.getElementById("garrison-note");
+  gnote.textContent = bare
+    ? "Nothing stands between the queen and the next warrior."
+    : thin ? `Only ${g.home} soldiers at the nest — thin.`
+    : "Soldiers holding the nest.";
+  gnote.style.color = bare ? "var(--critical)"
+    : thin ? "var(--food)" : "var(--ink-muted)";
+
   const qhp = data.queen.hp, qhpMax = data.queen.hp_max;
   document.getElementById("v-queenhp").textContent = `${qhp}/${qhpMax}`;
   const qFrac = qhpMax > 0 ? qhp / qhpMax : 0;
