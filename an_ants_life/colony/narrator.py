@@ -62,6 +62,21 @@ _PHRASINGS: Dict[str, Callable[[HistoryEvent], str]] = {
     EventKind.OBJ_CLAIMED:
         lambda e: "A food site is secured and claimed.",
 
+    EventKind.DIRECTIVE_PLACED:
+        lambda e: {
+            "FORAGE": "Scent is laid toward a new foraging ground.",
+            "DEFEND": "The colony is set to hold a line.",
+            "EXPLORE": "Scouts are sent to range over new ground.",
+        }.get(e.data.get("kind", ""), "A directive is laid down."),
+    EventKind.DIRECTIVE_EXPIRED:
+        lambda e: "A directive fades from the ground.",
+    EventKind.POLICY_CHANGED:
+        lambda e: e.data.get("text", "The colony's priorities shift."),
+    EventKind.RALLY_CALLED:
+        lambda e: "Every ant is called back to the nest.",
+    EventKind.RALLY_ENDED:
+        lambda e: "The recall is lifted; the colony spreads out again.",
+
     EventKind.CHAPTER_START:
         lambda e: f"— {e.data.get('title', 'A new chapter')} begins —",
     EventKind.CHAPTER_END:

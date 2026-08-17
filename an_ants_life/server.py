@@ -13,9 +13,10 @@ from __future__ import annotations
 import json
 import sys
 import threading
+from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Optional
+from typing import Deque, Optional
 
 from config import SimConfig
 from state import GameState
@@ -23,6 +24,7 @@ from systems.time import Timekeeper
 from enemies.kinds import EnemyKind
 from colony.history import EventKind
 from colony.narrator import chronicle_lines
+from colony.directives import DirectiveKind
 
 WEB_DIR = Path(__file__).parent / "web"
 DEFAULT_PORT = 8765
@@ -124,13 +126,38 @@ def _build_snapshot(state: GameState, paused: bool) -> dict:
                 for m in state.milestones.milestones
             ],
         },
+        "directives": [
+            {"id": d.id, "kind": d.kind.value, "x": round(d.x, 2), "y": round(d.y, 2),
+             "strength": round(d.strength, 3)}
+            for d in state.directives.items
+        ],
+        "policy": {
+            "scout_target": round(state.policy.scout_target, 3),
+            "soldier_target": round(state.policy.soldier_target, 3),
+            "auto_defense": state.policy.auto_defense,
+            "rally": state.policy.rally,
+            "effective_soldier_target": round(
+                state.policy.effective_soldier_target(
+                    cfg, colony.emergency.get("territory_pressure", 0.0)), 3),
+            "max_scout": cfg.POLICY_MAX_SCOUT_FRAC,
+            "max_soldier": cfg.POLICY_MAX_SOLDIER_FRAC,
+            "max_per_kind": cfg.DIRECTIVE_MAX_PER_KIND,
+            "defend_share": cfg.DIRECTIVE_DEFEND_MAX_SHARE,
+        },
         "ending": state.ending,
         "ending_text": _ending_text(state),
     }
 
 
 class SimRunner:
-    """Owns the simulation thread and the latest served snapshot."""
+    """Owns the simulation thread and the latest served snapshot.
+
+    Player input arrives on HTTP threads while the simulation runs on its
+    own, so commands are queued rather than applied where they land -
+    mutating directives or policy mid-tick would race the systems reading
+    them. The queue is drained at a tick boundary, which also means an
+    action either lands wholly within one tick or not at all.
+    """
 
     def __init__(self) -> None:
         self.cfg = SimConfig()
@@ -138,25 +165,94 @@ class SimRunner:
         self.clock = Timekeeper(self.cfg)
         self.paused = False
         self.snapshot: dict = _build_snapshot(self.state, self.paused)
-        self._restart_requested = False
+        # deque.append / popleft are atomic under the GIL, so no lock.
+        self._commands: Deque[dict] = deque()
 
-    def toggle_pause(self) -> None:
-        self.paused = not self.paused
-
-    def request_restart(self) -> None:
-        self._restart_requested = True
+    def submit(self, cmd: dict) -> None:
+        """Called from HTTP threads; never touches simulation state."""
+        self._commands.append(cmd)
 
     def get_snapshot(self) -> dict:
         return self.snapshot  # reference swap is atomic under the GIL
 
+    def _drain(self) -> None:
+        while True:
+            try:
+                cmd = self._commands.popleft()
+            except IndexError:
+                return
+            try:
+                self._apply(cmd)
+            except (KeyError, TypeError, ValueError):
+                # A malformed request must never take the sim thread down.
+                continue
+
+    def _apply(self, cmd: dict) -> None:
+        action = cmd.get("action")
+        state = self.state
+        cfg = self.cfg
+
+        if action == "pause_toggle":
+            self.paused = not self.paused
+        elif action == "restart":
+            self.state = GameState(cfg)
+            self.paused = False
+        elif action == "place_directive":
+            self._place(state, cmd)
+        elif action == "remove_directive":
+            state.directives.remove(int(cmd["id"]))
+        elif action == "clear_directives":
+            state.directives.clear()
+        elif action == "set_policy":
+            self._set_policy(state, cmd)
+        elif action == "set_rally":
+            self._set_rally(state, bool(cmd.get("on")))
+
+    def _place(self, state: GameState, cmd: dict) -> None:
+        kind = DirectiveKind(str(cmd["kind"]).upper())
+        x = min(max(0.0, float(cmd["x"])), float(self.cfg.WORLD_W))
+        y = min(max(0.0, float(cmd["y"])), float(self.cfg.WORLD_H))
+        state.directives.place(kind, x, y, state.t)
+        state.history.emit(
+            state.t, state.tick, EventKind.DIRECTIVE_PLACED,
+            {"kind": kind.value, "x": round(x, 1), "y": round(y, 1)},
+            cause="player_order", tags=["directive"]
+        )
+
+    def _set_policy(self, state: GameState, cmd: dict) -> None:
+        scout = cmd.get("scout")
+        soldier = cmd.get("soldier")
+        state.policy.set_targets(
+            self.cfg,
+            None if scout is None else float(scout),
+            None if soldier is None else float(soldier),
+        )
+        if cmd.get("auto_defense") is not None:
+            state.policy.auto_defense = bool(cmd["auto_defense"])
+        state.history.emit(
+            state.t, state.tick, EventKind.POLICY_CHANGED,
+            {"text": (f"Standing orders change: {state.policy.soldier_target:.0%} soldiers, "
+                      f"{state.policy.scout_target:.0%} scouts."),
+             "scout": state.policy.scout_target,
+             "soldier": state.policy.soldier_target,
+             "auto_defense": state.policy.auto_defense},
+            cause="player_order", tags=["policy"]
+        )
+
+    def _set_rally(self, state: GameState, on: bool) -> None:
+        if state.policy.rally == on:
+            return
+        state.policy.rally = on
+        state.history.emit(
+            state.t, state.tick,
+            EventKind.RALLY_CALLED if on else EventKind.RALLY_ENDED,
+            {}, cause="player_order", tags=["rally"]
+        )
+
     def run_forever(self) -> None:
         while True:
             dt = self.clock.step()
-
-            if self._restart_requested:
-                self.state = GameState(self.cfg)
-                self._restart_requested = False
-                self.paused = False
+            self._drain()
 
             if not self.paused and self.state.ending is None:
                 self.state.step(dt)
@@ -198,12 +294,8 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             payload = {}
 
-        runner = self.server.runner
-        action = payload.get("action")
-        if action == "pause_toggle":
-            runner.toggle_pause()
-        elif action == "restart":
-            runner.request_restart()
+        if isinstance(payload, dict) and payload.get("action"):
+            self.server.runner.submit(payload)
 
         self._send(200, "application/json", b'{"ok": true}')
 

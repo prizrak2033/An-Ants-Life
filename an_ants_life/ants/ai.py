@@ -13,6 +13,7 @@ import math
 from typing import Tuple, Optional, TYPE_CHECKING
 from ants.intents import Intent
 from ants.roles import Role
+from colony.directives import DirectiveKind
 
 if TYPE_CHECKING:
     from state import GameState
@@ -88,6 +89,17 @@ def choose_intent(state: 'GameState', ant: 'Ant') -> Intent:
     """Choose the next action for an ant based on its role and current state."""
     cfg = state.cfg
     nest = state.nest_pos  # Use cached nest position
+    board = state.directives
+
+    # Rally: the colony pulls back to the nest. Foraging stops entirely,
+    # which is the cost - soldiers still answer anything already on top
+    # of them, since falling back is not the same as refusing to fight.
+    if state.policy.rally:
+        if ant.role == Role.SOLDIER:
+            e, _ = _closest_enemy(state, ant.x, ant.y, cfg.COMBAT_SCAN_RADIUS)
+            if e is not None:
+                return Intent(target=(e.x, e.y), deposit_channel="home")
+        return Intent(target=nest, deposit_channel="home")
 
     # Soldiers: run down food thieves first, else intercept nearby enemies
     if ant.role == Role.SOLDIER:
@@ -97,7 +109,15 @@ def choose_intent(state: 'GameState', ant: 'Ant') -> Intent:
         e, d = _closest_enemy(state, ant.x, ant.y, cfg.COMBAT_SCAN_RADIUS)
         if e is not None:
             return Intent(target=(e.x, e.y), deposit_channel="home")
-        # patrol around nest
+        # Patrol the nest, or a defend mark if the player has set a line.
+        # Only part of the guard may leave, decided per ant by a stable
+        # split so individuals don't oscillate between post and nest.
+        if (ant.id % 100) < cfg.DIRECTIVE_DEFEND_MAX_SHARE * 100:
+            hold = board.nearest(DirectiveKind.DEFEND, ant.x, ant.y)
+            if hold is not None:
+                return Intent(target=_rand_point(cfg, hold.x, hold.y,
+                                                 cfg.DIRECTIVE_DEFEND_PATROL_RADIUS),
+                              deposit_channel="home")
         return Intent(target=_rand_point(cfg, nest[0], nest[1], 18.0), deposit_channel="home")
 
     # Workers: forage when empty, return home when carrying.
@@ -133,4 +153,10 @@ def choose_intent(state: 'GameState', ant: 'Ant') -> Intent:
     )
     if pt is not None and random.random() < 0.4:
         return Intent(target=pt, deposit_channel="home")
+    # Range around an explore mark if one is set, else around the nest.
+    survey = board.nearest(DirectiveKind.EXPLORE, ant.x, ant.y)
+    if survey is not None:
+        return Intent(target=_rand_point(cfg, survey.x, survey.y,
+                                         cfg.DIRECTIVE_EXPLORE_ROAM_RADIUS),
+                      deposit_channel="home")
     return Intent(target=_wander_point(cfg, ant, 42.0, turn_spread=0.25), deposit_channel="home")

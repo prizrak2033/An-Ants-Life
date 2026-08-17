@@ -56,16 +56,17 @@ def _pick_role(state) -> Role:
     if total == 0:
         return Role.WORKER
 
+    # Caste mix is the player's standing order; while they leave defence
+    # on auto it still scales itself with border pressure as before.
+    policy = state.policy
     pressure = max(0.0, min(1.0, state.colony.emergency.get("territory_pressure", 0.0)))
-    soldier_target = cfg.GROWTH_TARGET_SOLDIER_FRAC + (
-        cfg.GROWTH_THREAT_SOLDIER_FRAC - cfg.GROWTH_TARGET_SOLDIER_FRAC
-    ) * pressure
+    soldier_target = policy.effective_soldier_target(cfg, pressure)
 
     soldiers = sum(1 for a in ants if a.role == Role.SOLDIER)
     scouts = sum(1 for a in ants if a.role == Role.SCOUT)
 
     soldier_deficit = soldier_target - soldiers / total
-    scout_deficit = cfg.GROWTH_TARGET_SCOUT_FRAC - scouts / total
+    scout_deficit = policy.scout_target - scouts / total
 
     if soldier_deficit > 0 and soldier_deficit >= scout_deficit:
         return Role.SOLDIER

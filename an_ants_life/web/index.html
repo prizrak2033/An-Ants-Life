@@ -78,6 +78,72 @@
   button:hover { background: #2a2a28; }
   button:active { transform: translateY(1px); }
 
+  #toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  #toolbar .spacer { flex: 1; }
+  .tool-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  button.tool { border-color: var(--border); }
+  button.tool.active {
+    background: var(--food);
+    color: #1a1a19;
+    border-color: var(--food);
+    font-weight: 600;
+  }
+  #tool-hint { font-size: 11px; color: var(--ink-muted); margin-left: 4px; }
+  #tool-detail { font-size: 11px; color: var(--food); font-style: italic; }
+
+  #layerbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  #layerbar .spacer { flex: 1; }
+  #layer-hint { font-size: 11px; color: var(--ink-muted); margin-left: 4px; }
+  button.layer {
+    font-size: 12px;
+    padding: 4px 11px;
+    opacity: 0.45;
+  }
+  button.layer.active {
+    opacity: 1;
+    border-color: var(--ink-muted);
+  }
+
+  #world.placing { cursor: crosshair; }
+
+  .slider-row { margin-bottom: 12px; }
+  .slider-row .head {
+    display: flex; justify-content: space-between;
+    font-size: 13px; margin-bottom: 4px;
+  }
+  .slider-row .head .label { color: var(--ink-secondary); }
+  .slider-row .head .value { font-variant-numeric: tabular-nums; }
+  .slider-row input[type=range] {
+    width: 100%; accent-color: var(--food); cursor: pointer;
+  }
+  .policy-note { font-size: 11px; color: var(--ink-muted); margin-top: -4px; }
+  #auto-defense-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--ink-secondary); margin-bottom: 10px;
+  }
+
   main {
     flex: 1;
     display: flex;
@@ -245,6 +311,20 @@
 
   #saga-empty { font-size: 12px; color: var(--ink-muted); font-style: italic; }
 
+  #directive-list {
+    list-style: none; margin: 0; padding: 0;
+    font-size: 12px; display: flex; flex-direction: column; gap: 7px;
+  }
+  #directive-list li { display: flex; align-items: center; gap: 8px; }
+  #directive-list .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  #directive-list .where { color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+  #directive-list .fade {
+    margin-left: auto; height: 4px; width: 46px;
+    background: var(--surface-2); border-radius: 2px; overflow: hidden;
+  }
+  #directive-list .fade i { display: block; height: 100%; background: var(--food); }
+  #directive-empty { font-size: 12px; color: var(--ink-muted); font-style: italic; }
+
   #game-over-overlay {
     position: fixed;
     inset: 0;
@@ -281,9 +361,34 @@
     <h1>An Ant's Life</h1>
     <span class="tick" id="tick-readout">tick 0 · t 0.0s</span>
     <div class="spacer"></div>
+    <button id="rally-btn" title="Recall every ant to the nest. Foraging stops.">Recall</button>
     <button id="pause-btn">Pause</button>
     <button id="restart-btn">Restart</button>
   </header>
+
+  <div id="toolbar">
+    <span class="tool-label">Directive</span>
+    <button class="tool" data-tool="none">Observe</button>
+    <button class="tool" data-tool="FORAGE">Forage</button>
+    <button class="tool" data-tool="DEFEND">Defend</button>
+    <button class="tool" data-tool="EXPLORE">Explore</button>
+    <span id="tool-hint">Pick a directive, then click the map. Click a mark to remove it.</span>
+    <span id="tool-detail"></span>
+    <div class="spacer"></div>
+    <button id="clear-directives">Clear all</button>
+  </div>
+
+  <div id="layerbar">
+    <span class="tool-label">Layers</span>
+    <button class="layer active" data-layer="terrain">Terrain</button>
+    <button class="layer active" data-layer="territory">Territory</button>
+    <button class="layer active" data-layer="trails">Trails</button>
+    <button class="layer active" data-layer="directives">Marks</button>
+    <span id="layer-hint">Turn layers off to watch the ants themselves.</span>
+    <div class="spacer"></div>
+    <button id="layers-ants-only">Ants only</button>
+    <button id="layers-all">Show all</button>
+  </div>
 
   <main>
     <div class="stage">
@@ -329,6 +434,29 @@
 
         <div class="row"><span class="label">Territory pressure</span><span class="value" id="v-pressure">0%</span></div>
         <div class="bar-track"><div class="bar-fill" id="bar-pressure" style="background:var(--claimed)"></div></div>
+      </div>
+
+      <div class="panel">
+        <h2>Standing Orders</h2>
+        <div class="slider-row">
+          <div class="head"><span class="label">Soldiers</span><span class="value" id="v-soldier-target">18%</span></div>
+          <input type="range" id="soldier-slider" min="0" max="60" value="18">
+          <div class="policy-note" id="soldier-note">Auto: rises with border pressure.</div>
+        </div>
+        <div id="auto-defense-row">
+          <input type="checkbox" id="auto-defense" checked>
+          <label for="auto-defense">Let defence follow the threat</label>
+        </div>
+        <div class="slider-row">
+          <div class="head"><span class="label">Scouts</span><span class="value" id="v-scout-target">8%</span></div>
+          <input type="range" id="scout-slider" min="0" max="35" value="8">
+        </div>
+        <div class="policy-note">Targets shape which caste the queen raises next, not existing ants.</div>
+      </div>
+
+      <div class="panel">
+        <h2>Directives</h2>
+        <ul id="directive-list"></ul>
       </div>
 
       <div class="panel">

@@ -12,6 +12,8 @@ from config import SimConfig
 from colony.colony_state import ColonyState
 from colony.history import HistoryLog
 from colony.milestones import MilestoneTracker
+from colony.directives import DirectiveBoard
+from colony.policy import ColonyPolicy
 
 from world.map import WorldMap
 from world.pheromones import PheromoneSystem
@@ -19,6 +21,7 @@ from world.territory import TerritoryModel
 from world.terrain import TerrainMap
 
 from systems.enemies import update_enemies
+from systems.directives import update_directives
 from systems.combat import update_combat
 from systems.objectives import update_objectives
 from systems.stress import update_stress
@@ -43,6 +46,8 @@ class GameState:
     colony: ColonyState = field(init=False)
     history: HistoryLog = field(init=False)
     milestones: MilestoneTracker = field(init=False)
+    directives: DirectiveBoard = field(init=False)
+    policy: ColonyPolicy = field(init=False)
 
     enemies: list = field(default_factory=list)
     _next_enemy_id: int = 1
@@ -60,6 +65,8 @@ class GameState:
         self.colony = ColonyState(self.cfg)
         self.history = HistoryLog(self.cfg.HISTORY_MAX_EVENTS, self.cfg.HISTORY_MAX_NOTABLE)
         self.milestones = MilestoneTracker(self.cfg)
+        self.directives = DirectiveBoard(self.cfg)
+        self.policy = ColonyPolicy.from_config(self.cfg)
         
         # Cache nest position
         self.nest_pos = (self.cfg.NEST_X, self.cfg.NEST_Y)
@@ -72,6 +79,9 @@ class GameState:
 
         update_enemies(self, dt)
         self.territory.update(self)
+        # Directives lay their scent before pheromones decay, so a mark's
+        # contribution is subject to the same evaporation as a real trail.
+        update_directives(self, dt)
         self.pheromones.decay_and_diffuse(dt)
 
         for ant in self.colony.ants:

@@ -264,6 +264,32 @@ class SimConfig:
     CHAPTER_MIN_TICKS: int = 300
     CHAPTER_SUPERSEDE_MARGIN: float = 0.5
 
+    # Player agency
+    #
+    # Directives are marks on the world, not orders to ants: the cost of
+    # one is that it fades and that only so many can be held at once.
+    # A forage mark works purely by laying scent the normal recruitment
+    # loop then follows, so agency rides on the emergent machinery rather
+    # than bypassing it.
+    DIRECTIVE_MAX_PER_KIND: int = 3
+    DIRECTIVE_LIFETIME_SECONDS: float = 75.0
+    # Strong enough to out-scent a natural trail near the mark, but not by
+    # so much that it erases them. At 0.9 it settled around seven times a
+    # real trail's peak, which collapsed the colony's distributed foraging
+    # onto whichever single pile was marked and cost throughput outright.
+    DIRECTIVE_FORAGE_DEPOSIT_PER_SEC: float = 0.32
+    DIRECTIVE_FORAGE_RADIUS: float = 4.0
+    DIRECTIVE_DEFEND_PATROL_RADIUS: float = 12.0
+    # A defend mark can only ever draw part of the guard. Letting it take
+    # every soldier left the queen with no garrison at all: measured over
+    # 8 seeds it halved survival (6/8 -> 3/8) and took her from 29 HP to
+    # 12. Posting a forward guard should be a trade, not a trap.
+    DIRECTIVE_DEFEND_MAX_SHARE: float = 0.5
+    DIRECTIVE_EXPLORE_ROAM_RADIUS: float = 26.0
+
+    POLICY_MAX_SCOUT_FRAC: float = 0.35
+    POLICY_MAX_SOLDIER_FRAC: float = 0.60
+
     # Chronicle / history
     CHRONICLE_SHOW: bool = True
     CHRONICLE_N_EVENTS: int = 12

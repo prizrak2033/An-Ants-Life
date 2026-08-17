@@ -43,6 +43,13 @@ class EventKind:
     # Growth
     ANT_BORN = "ant_born"
 
+    # Player agency
+    DIRECTIVE_PLACED = "directive_placed"
+    DIRECTIVE_EXPIRED = "directive_expired"
+    POLICY_CHANGED = "policy_changed"
+    RALLY_CALLED = "rally_called"
+    RALLY_ENDED = "rally_ended"
+
     # Chapters / saga
     CHAPTER_START = "chapter_start"
     CHAPTER_END = "chapter_end"
@@ -71,6 +78,7 @@ SIGNIFICANCE: Dict[str, int] = {
     EventKind.ANT_BORN: Significance.NOISE,
     EventKind.EMERGENCY_FAMINE_PRESSURE: Significance.NOISE,
 
+    EventKind.DIRECTIVE_EXPIRED: Significance.MINOR,
     EventKind.ENEMY_SPAWN: Significance.MINOR,
     EventKind.ENEMY_KILL: Significance.MINOR,
     EventKind.ENEMY_DEATH: Significance.MINOR,
@@ -83,6 +91,8 @@ SIGNIFICANCE: Dict[str, int] = {
     EventKind.OBJ_CLAIMED: Significance.NOTABLE,
     EventKind.ENEMY_STEAL: Significance.NOTABLE,
     EventKind.EMERGENCY_FAMINE_REASSIGN: Significance.NOTABLE,
+    EventKind.DIRECTIVE_PLACED: Significance.NOTABLE,
+    EventKind.POLICY_CHANGED: Significance.NOTABLE,
 
     EventKind.EMERGENCY_FAMINE_START: Significance.MAJOR,
     EventKind.EMERGENCY_FAMINE_END: Significance.MAJOR,
@@ -90,6 +100,8 @@ SIGNIFICANCE: Dict[str, int] = {
     EventKind.ENEMY_ESCAPE: Significance.MAJOR,
     EventKind.ENEMY_LOOT_RECOVERED: Significance.MAJOR,
     EventKind.QUEEN_HIT: Significance.MAJOR,
+    EventKind.RALLY_CALLED: Significance.MAJOR,
+    EventKind.RALLY_ENDED: Significance.MAJOR,
     EventKind.CHAPTER_START: Significance.MAJOR,
     EventKind.CHAPTER_END: Significance.MAJOR,
     EventKind.MILESTONE: Significance.MAJOR,

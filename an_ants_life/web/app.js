@@ -57,6 +57,19 @@ function terrainLayer(terr, w, h, scaleX, scaleY) {
   return off;
 }
 
+const DIRECTIVE_COLOR = { FORAGE: "#fab219", DEFEND: "#9085e9", EXPLORE: "#3987e5" };
+
+// UI-only state. The server owns the simulation; this is just which tool
+// the player has in hand and the last frame's data for hit-testing.
+let activeTool = "none";
+let lastFrame = null;
+// Which overlays are drawn. The colony itself is never a layer - ants,
+// enemies, food and the queen always render, since they are the game.
+const layers = { terrain: true, territory: true, trails: true, directives: true };
+// Sliders are player-owned while being dragged: echoing the server's
+// value back into a control the user is holding fights their input.
+let sliderHeld = null;
+
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 function divergingColor(v) {
@@ -175,16 +188,23 @@ function drawEnemies(enemies, scaleX, scaleY) {
   }
 }
 
+// Ants are the game, so they are drawn large enough to follow individually
+// and ringed in dark so they stay readable on top of a bright trail or a
+// saturated territory cell rather than dissolving into it.
 function drawAnts(ants, scaleX, scaleY) {
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(0,0,0,0.62)";
   for (const [x, y, role, carrying] of ants) {
     const px = x * scaleX, py = y * scaleY;
     ctx.beginPath();
-    ctx.arc(px, py, carrying ? 2.6 : 1.9, 0, Math.PI * 2);
+    ctx.arc(px, py, carrying ? 4.0 : 3.2, 0, Math.PI * 2);
     ctx.fillStyle = ROLE_COLOR[role] || "#ffffff";
     ctx.fill();
+    ctx.stroke();
     if (carrying) {
+      // A crumb of food, so a laden forager reads at a glance.
       ctx.beginPath();
-      ctx.arc(px, py, 1.0, 0, Math.PI * 2);
+      ctx.arc(px, py, 1.7, 0, Math.PI * 2);
       ctx.fillStyle = FOOD_COLOR;
       ctx.fill();
     }
@@ -212,19 +232,47 @@ function render(data) {
   ctx.fillStyle = "#1a1a19";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  if (data.terrain) {
+  if (layers.terrain && data.terrain) {
     ctx.drawImage(terrainLayer(data.terrain, canvas.width, canvas.height, scaleX, scaleY), 0, 0);
   }
-  drawTerritory(data.territory, scaleX, scaleY);
-  const ph = data.pheromones;
-  // Ambient explored-area wash first, then supply routes on top of it.
-  drawPheromoneChannel(ph.home, ph.cols, ph.rows, ph.cell, scaleX, scaleY, PHERO_HOME_RGB, 0.14, 2.0);
-  drawPheromoneChannel(ph.food, ph.cols, ph.rows, ph.cell, scaleX, scaleY, PHERO_FOOD_RGB, 0.70, 0.15);
+  if (layers.territory) drawTerritory(data.territory, scaleX, scaleY);
+  if (layers.trails) {
+    const ph = data.pheromones;
+    // Ambient explored-area wash first, then supply routes on top of it.
+    drawPheromoneChannel(ph.home, ph.cols, ph.rows, ph.cell, scaleX, scaleY, PHERO_HOME_RGB, 0.12, 2.0);
+    drawPheromoneChannel(ph.food, ph.cols, ph.rows, ph.cell, scaleX, scaleY, PHERO_FOOD_RGB, 0.52, 0.15);
+  }
   drawNest(data.nest, scaleX, scaleY);
   drawFoodSources(data.food_sources, scaleX, scaleY);
   drawEnemies(data.enemies, scaleX, scaleY);
   drawAnts(data.ants, scaleX, scaleY);
   drawQueen(data.nest, data.queen, scaleX, scaleY);
+  if (layers.directives) drawDirectives(data.directives, scaleX, scaleY);
+}
+
+function drawDirectives(directives, scaleX, scaleY) {
+  if (!directives) return;
+  for (const d of directives) {
+    const px = d.x * scaleX, py = d.y * scaleY;
+    const color = DIRECTIVE_COLOR[d.kind] || "#ffffff";
+
+    // Outer ring shrinks as the mark fades, so how much life a directive
+    // has left is readable straight off the map.
+    ctx.beginPath();
+    ctx.arc(px, py, 7 + 9 * d.strength, 0, Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.25 + 0.45 * d.strength;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+    ctx.globalAlpha = 0.55 + 0.45 * d.strength;
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
+  }
 }
 
 function clockOf(t) {
@@ -308,6 +356,66 @@ function renderSaga(data) {
   }
 }
 
+function renderDirectiveList(data) {
+  const el = document.getElementById("directive-list");
+  el.innerHTML = "";
+  const items = data.directives || [];
+  if (!items.length) {
+    const p = document.createElement("div");
+    p.id = "directive-empty";
+    p.textContent = "No directives laid. The colony is on its own.";
+    el.appendChild(p);
+    return;
+  }
+  const share = data.policy ? Math.round((data.policy.defend_share || 0) * 100) : 50;
+  for (const d of items) {
+    const li = document.createElement("li");
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    dot.style.background = DIRECTIVE_COLOR[d.kind] || "#fff";
+    const name = document.createElement("span");
+    name.textContent = d.kind.charAt(0) + d.kind.slice(1).toLowerCase();
+    if (d.kind === "DEFEND") {
+      name.title = `Draws up to ${share}% of soldiers; the rest garrison the nest.`;
+    }
+    const where = document.createElement("span");
+    where.className = "where";
+    where.textContent = `${Math.round(d.x)},${Math.round(d.y)}`;
+    const fade = document.createElement("span");
+    fade.className = "fade";
+    const bar = document.createElement("i");
+    bar.style.width = `${Math.round(d.strength * 100)}%`;
+    fade.appendChild(bar);
+    li.append(dot, name, where, fade);
+    el.appendChild(li);
+  }
+}
+
+function renderPolicy(data) {
+  const p = data.policy;
+  if (!p) return;
+
+  const soldierPct = Math.round((p.auto_defense ? p.effective_soldier_target : p.soldier_target) * 100);
+  document.getElementById("v-soldier-target").textContent = `${soldierPct}%`;
+  if (sliderHeld !== "soldier") {
+    document.getElementById("soldier-slider").value = Math.round(p.soldier_target * 100);
+  }
+  document.getElementById("soldier-note").textContent = p.auto_defense
+    ? `Auto: rises with border pressure (now ${soldierPct}%).`
+    : "Held at your setting.";
+  document.getElementById("auto-defense").checked = p.auto_defense;
+
+  document.getElementById("v-scout-target").textContent = `${Math.round(p.scout_target * 100)}%`;
+  if (sliderHeld !== "scout") {
+    document.getElementById("scout-slider").value = Math.round(p.scout_target * 100);
+  }
+
+  const rally = document.getElementById("rally-btn");
+  rally.textContent = p.rally ? "Recalled" : "Recall";
+  rally.classList.toggle("tool", true);
+  rally.classList.toggle("active", !!p.rally);
+}
+
 function updateSidebar(data) {
   document.getElementById("tick-readout").textContent = `tick ${data.tick} · t ${data.t.toFixed(1)}s`;
 
@@ -351,6 +459,8 @@ function updateSidebar(data) {
 
   renderChronicle(data);
   renderSaga(data);
+  renderDirectiveList(data);
+  renderPolicy(data);
 
   document.getElementById("m-deposits").textContent = data.metrics.food_deposits;
   document.getElementById("m-kills").textContent = data.metrics.enemy_kills;
@@ -378,6 +488,7 @@ async function poll() {
   try {
     const res = await fetch("/state", { cache: "no-store" });
     const data = await res.json();
+    lastFrame = data;
     render(data);
     updateSidebar(data);
   } catch (err) {
@@ -393,9 +504,133 @@ async function sendControl(action) {
   });
 }
 
+async function send(payload) {
+  await fetch("/control", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+// Says what a directive actually does, since none of them command ants
+// directly and that is easy to misread as the tool having failed.
+const TOOL_DETAIL = {
+  FORAGE: "Lays food scent — workers recruit themselves to it.",
+  DEFEND: "Up to half the guard patrols here; the rest hold the nest.",
+  EXPLORE: "Scouts range around here instead of home.",
+  none: "",
+};
+
+function setTool(tool) {
+  activeTool = tool;
+  for (const b of document.querySelectorAll("button.tool[data-tool]")) {
+    b.classList.toggle("active", b.dataset.tool === tool);
+  }
+  canvas.classList.toggle("placing", tool !== "none");
+  document.getElementById("tool-detail").textContent = TOOL_DETAIL[tool] || "";
+}
+
+// Canvas is displayed scaled (max-width), so convert through its rect
+// rather than assuming CSS pixels equal backing-store pixels.
+function canvasToWorld(ev) {
+  const rect = canvas.getBoundingClientRect();
+  const w = lastFrame ? lastFrame.world.w : 120;
+  const h = lastFrame ? lastFrame.world.h : 70;
+  return {
+    x: ((ev.clientX - rect.left) / rect.width) * w,
+    y: ((ev.clientY - rect.top) / rect.height) * h,
+  };
+}
+
+function directiveAt(world) {
+  if (!lastFrame || !lastFrame.directives) return null;
+  let best = null, bestD = 4.0; // world units
+  for (const d of lastFrame.directives) {
+    const dist = Math.hypot(d.x - world.x, d.y - world.y);
+    if (dist < bestD) { bestD = dist; best = d; }
+  }
+  return best;
+}
+
+canvas.addEventListener("click", (ev) => {
+  const world = canvasToWorld(ev);
+  // Clicking an existing mark removes it, whatever tool is in hand -
+  // otherwise a full board could only be cleared wholesale.
+  const hit = directiveAt(world);
+  if (hit) {
+    send({ action: "remove_directive", id: hit.id });
+    return;
+  }
+  if (activeTool === "none") return;
+  send({ action: "place_directive", kind: activeTool, x: world.x, y: world.y });
+});
+
+for (const b of document.querySelectorAll("button.tool[data-tool]")) {
+  b.addEventListener("click", () => setTool(b.dataset.tool));
+}
+
+function syncLayerButtons() {
+  for (const b of document.querySelectorAll("button.layer[data-layer]")) {
+    b.classList.toggle("active", !!layers[b.dataset.layer]);
+  }
+  if (lastFrame) render(lastFrame);
+}
+
+for (const b of document.querySelectorAll("button.layer[data-layer]")) {
+  b.addEventListener("click", () => {
+    layers[b.dataset.layer] = !layers[b.dataset.layer];
+    syncLayerButtons();
+  });
+}
+document.getElementById("layers-ants-only").addEventListener("click", () => {
+  layers.terrain = layers.territory = layers.trails = false;
+  layers.directives = true;
+  syncLayerButtons();
+});
+document.getElementById("layers-all").addEventListener("click", () => {
+  layers.terrain = layers.territory = layers.trails = layers.directives = true;
+  syncLayerButtons();
+});
+document.getElementById("clear-directives")
+  .addEventListener("click", () => send({ action: "clear_directives" }));
+
+document.getElementById("rally-btn").addEventListener("click", () => {
+  const on = !(lastFrame && lastFrame.policy && lastFrame.policy.rally);
+  send({ action: "set_rally", on });
+});
+
+function wireSlider(id, key, label) {
+  const el = document.getElementById(id);
+  el.addEventListener("pointerdown", () => { sliderHeld = key; });
+  el.addEventListener("input", () => {
+    document.getElementById(label).textContent = `${el.value}%`;
+  });
+  const commit = () => {
+    sliderHeld = null;
+    send({ action: "set_policy", [key]: Number(el.value) / 100 });
+  };
+  el.addEventListener("change", commit);
+  el.addEventListener("pointerup", commit);
+}
+wireSlider("soldier-slider", "soldier", "v-soldier-target");
+wireSlider("scout-slider", "scout", "v-scout-target");
+
+document.getElementById("auto-defense").addEventListener("change", (ev) => {
+  send({ action: "set_policy", auto_defense: ev.target.checked });
+});
+
+document.addEventListener("keydown", (ev) => {
+  if (ev.target.tagName === "INPUT") return;
+  const keys = { "1": "FORAGE", "2": "DEFEND", "3": "EXPLORE", "0": "none", "escape": "none" };
+  const k = keys[ev.key.toLowerCase()];
+  if (k !== undefined) setTool(k);
+  if (ev.key.toLowerCase() === "p") sendControl("pause_toggle");
+});
+
 document.getElementById("pause-btn").addEventListener("click", () => sendControl("pause_toggle"));
 document.getElementById("restart-btn").addEventListener("click", () => sendControl("restart"));
 document.getElementById("game-over-restart").addEventListener("click", () => sendControl("restart"));
 
+setTool("none");
 poll();
 setInterval(poll, 120);
