@@ -11,3 +11,7 @@ class Role(Enum):
     WORKER = "WORKER"
     SCOUT = "SCOUT"
     SOLDIER = "SOLDIER"
+    # Never born, only promoted, and never leaves the queen. Exists
+    # because every other role - and every player directive - points
+    # outward, while every colony death happens at the nest.
+    PRAETORIAN = "PRAETORIAN"

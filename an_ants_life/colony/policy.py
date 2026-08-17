@@ -17,6 +17,10 @@ from dataclasses import dataclass
 class ColonyPolicy:
     scout_target: float = 0.08
     soldier_target: float = 0.18
+    # How many soldiers the colony is willing to lock down as permanent
+    # guards. A count rather than a fraction: it is insurance against a
+    # single event, not a standing share of the army.
+    praetorian_target: int = 3
     # While true, the soldier target still rises with border pressure the
     # way it always has. Moving the soldier slider hands that over.
     auto_defense: bool = True
@@ -30,6 +34,9 @@ class ColonyPolicy:
             scout_target=cfg.GROWTH_TARGET_SCOUT_FRAC,
             soldier_target=cfg.GROWTH_TARGET_SOLDIER_FRAC,
         )
+
+    def set_praetorian_target(self, cfg, count: int) -> None:
+        self.praetorian_target = int(_clamp(count, 0, cfg.PRAETORIAN_MAX))
 
     def set_targets(self, cfg, scout: float = None, soldier: float = None) -> None:
         if scout is not None:

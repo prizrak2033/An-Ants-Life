@@ -31,6 +31,7 @@ class ColonyState:
         "raids": 0,
         "ants_killed": 0,
         "ants_born": 0,
+        "praetorians_raised": 0,
         "role_conversions": 0,
         "border_incidents": 0,
         "expansions": 0,

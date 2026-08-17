@@ -42,6 +42,7 @@ class EventKind:
 
     # Growth
     ANT_BORN = "ant_born"
+    PRAETORIAN_RAISED = "praetorian_raised"
 
     # Player agency
     DIRECTIVE_PLACED = "directive_placed"
@@ -100,6 +101,7 @@ SIGNIFICANCE: Dict[str, int] = {
     EventKind.ENEMY_ESCAPE: Significance.MAJOR,
     EventKind.ENEMY_LOOT_RECOVERED: Significance.MAJOR,
     EventKind.QUEEN_HIT: Significance.MAJOR,
+    EventKind.PRAETORIAN_RAISED: Significance.MAJOR,
     EventKind.RALLY_CALLED: Significance.MAJOR,
     EventKind.RALLY_ENDED: Significance.MAJOR,
     EventKind.CHAPTER_START: Significance.MAJOR,

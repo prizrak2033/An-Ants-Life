@@ -187,6 +187,7 @@ def dump_state(state: GameState) -> Dict[str, Any]:
                        "recruits": d.recruits} for d in state.directives.items],
         },
         "policy": {"scout_target": state.policy.scout_target,
+                   "praetorian_target": state.policy.praetorian_target,
                    "soldier_target": state.policy.soldier_target,
                    "auto_defense": state.policy.auto_defense,
                    "rally": state.policy.rally},
@@ -251,6 +252,7 @@ def load_state(data: Dict[str, Any]) -> GameState:
     pol = data["policy"]
     state.policy = ColonyPolicy(scout_target=pol["scout_target"],
                                 soldier_target=pol["soldier_target"],
+                                praetorian_target=pol.get("praetorian_target", 3),
                                 auto_defense=pol["auto_defense"],
                                 rally=pol["rally"])
     return state

@@ -204,6 +204,28 @@ class SimConfig:
     ANT_WORKER_ATK: int = 1
     ANT_SCOUT_ATK: int = 1
     ANT_SOLDIER_ATK: int = 3
+
+    # Praetorian guard.
+    #
+    # Earned, not bred: a soldier that fights an intruder inside the
+    # queen's chamber is promoted, which ties the reward to precisely the
+    # event that decides games. A praetorian then never leaves her - not
+    # for a defend mark, not to chase a thief, not on recall.
+    #
+    # Deliberately given no combat bonus. Measurement is unambiguous that
+    # a garrison of zero *is* death, so a caste that cannot be drawn away
+    # is already strong on position alone; stacking damage on top would
+    # likely trivialise the game. BONUS_HP is the gentler knob if they
+    # ever measure too weak.
+    #
+    # The cost is real: promotion consumes a field soldier and leaves a
+    # deficit the queen must pay to refill, and a praetorian neither
+    # forages nor holds ground anywhere but home.
+    PRAETORIAN_ENABLE: bool = True
+    PRAETORIAN_MAX: int = 6
+    PRAETORIAN_GUARD_RADIUS: float = 10.0
+    PRAETORIAN_CHAMBER_RADIUS: float = 11.0
+    PRAETORIAN_BONUS_HP: int = 0
     # Enemy attack lives per kind, in the enemy block above.
 
     # Economy

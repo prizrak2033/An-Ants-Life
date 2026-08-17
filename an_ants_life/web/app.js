@@ -6,7 +6,8 @@ const ctx = canvas.getContext("2d");
 
 // Palette (mirrors the CSS custom properties in index.html; canvas fills
 // need raw RGB for alpha blending, so they're duplicated here as tuples).
-const ROLE_COLOR = { WORKER: "#199e70", SCOUT: "#c98500", SOLDIER: "#9085e9" };
+const ROLE_COLOR = { WORKER: "#199e70", SCOUT: "#c98500", SOLDIER: "#9085e9",
+                     PRAETORIAN: "#e8e0c0" };
 // Enemy kinds share the red "hostile" family so they read as threats at a
 // glance, separated by shape and lightness rather than unrelated hues.
 const ENEMY_COLOR = { WARRIOR: "#e66767", RAIDER: "#d55181", PREDATOR: "#a32222" };
@@ -199,8 +200,12 @@ function drawAnts(ants, scaleX, scaleY) {
   ctx.strokeStyle = "rgba(0,0,0,0.62)";
   for (const [x, y, role, carrying] of ants) {
     const px = x * scaleX, py = y * scaleY;
+    // Praetorians draw a touch larger: a handful of fixed guards ringing
+    // the queen should be countable at a glance, since that count is
+    // what the player is buying.
+    const r = role === "PRAETORIAN" ? 3.9 : (carrying ? 4.0 : 3.2);
     ctx.beginPath();
-    ctx.arc(px, py, carrying ? 4.0 : 3.2, 0, Math.PI * 2);
+    ctx.arc(px, py, r, 0, Math.PI * 2);
     ctx.fillStyle = ROLE_COLOR[role] || "#ffffff";
     ctx.fill();
     ctx.stroke();
@@ -410,6 +415,11 @@ function renderPolicy(data) {
     : "Held at your setting.";
   document.getElementById("auto-defense").checked = p.auto_defense;
 
+  document.getElementById("v-praetorian-target").textContent = p.praetorian_target;
+  if (sliderHeld !== "praetorian") {
+    document.getElementById("praetorian-slider").value = p.praetorian_target;
+  }
+
   document.getElementById("v-scout-target").textContent = `${Math.round(p.scout_target * 100)}%`;
   if (sliderHeld !== "scout") {
     document.getElementById("scout-slider").value = Math.round(p.scout_target * 100);
@@ -426,15 +436,17 @@ function updateSidebar(data) {
   document.getElementById("colony-name").textContent = data.colony_name || "";
   if (data.save_note) document.getElementById("save-note").textContent = data.save_note;
 
-  let workers = 0, scouts = 0, soldiers = 0;
+  let workers = 0, scouts = 0, soldiers = 0, praetorians = 0;
   for (const [, , role] of data.ants) {
     if (role === "WORKER") workers++;
     else if (role === "SCOUT") scouts++;
     else if (role === "SOLDIER") soldiers++;
+    else if (role === "PRAETORIAN") praetorians++;
   }
   document.getElementById("n-worker").textContent = workers;
   document.getElementById("n-scout").textContent = scouts;
   document.getElementById("n-soldier").textContent = soldiers;
+  document.getElementById("n-praetorian").textContent = praetorians;
 
   // Population against the world's food ceiling, plus whether the colony
   // is currently feeding itself. These are deliberately two readings: the
@@ -720,6 +732,21 @@ function wireSlider(id, key, label) {
 }
 wireSlider("soldier-slider", "soldier", "v-soldier-target");
 wireSlider("scout-slider", "scout", "v-scout-target");
+
+// A whole-number count rather than a percentage, so it gets its own wiring.
+(function wirePraetorian() {
+  const el = document.getElementById("praetorian-slider");
+  el.addEventListener("pointerdown", () => { sliderHeld = "praetorian"; });
+  el.addEventListener("input", () => {
+    document.getElementById("v-praetorian-target").textContent = el.value;
+  });
+  const commit = () => {
+    sliderHeld = null;
+    send({ action: "set_policy", praetorian: Number(el.value) });
+  };
+  el.addEventListener("change", commit);
+  el.addEventListener("pointerup", commit);
+})();
 
 document.getElementById("auto-defense").addEventListener("change", (ev) => {
   send({ action: "set_policy", auto_defense: ev.target.checked });

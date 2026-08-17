@@ -12,6 +12,7 @@ def render_hud(state) -> None:
     workers = sum(1 for a in colony.ants if a.role == Role.WORKER)
     scouts = sum(1 for a in colony.ants if a.role == Role.SCOUT)
     soldiers = sum(1 for a in colony.ants if a.role == Role.SOLDIER)
+    praetorians = sum(1 for a in colony.ants if a.role == Role.PRAETORIAN)
 
     pressure = colony.emergency.get("territory_pressure", 0.0)
     hunger = colony.emergency.get("hunger", 0.0)
@@ -20,7 +21,7 @@ def render_hud(state) -> None:
 
     print(
         f"[t={state.t:7.1f}s tick={state.tick:6d}] "
-        f"ants=W{workers}/S{scouts}/So{soldiers} "
+        f"ants=W{workers}/S{scouts}/So{soldiers}/Pr{praetorians} "
         f"food={colony.food_store:6.1f} stress={colony.stress:.2f} "
         f"hunger={hunger:.2f}({famine}) pressure={pressure:.2f} "
         f"enemies={len(state.enemies):2d} queen_hp={colony.queen.hp}/{colony.queen.hp_max} "

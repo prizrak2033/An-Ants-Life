@@ -17,6 +17,7 @@
     --role-worker: #199e70;
     --role-scout: #c98500;
     --role-soldier: #9085e9;
+    --praetorian: #e8e0c0;
     --enemy: #e66767;
     --queen: #ffffff;
     --food: #fab219;
@@ -446,6 +447,7 @@
           <span><i class="key" style="background:var(--role-worker)"></i>Worker</span>
           <span><i class="key" style="background:var(--role-scout)"></i>Scout</span>
           <span><i class="key" style="background:var(--role-soldier)"></i>Soldier</span>
+          <span><i class="key" style="background:var(--praetorian)"></i>Praetorian</span>
           <span><i class="key" style="background:#e66767"></i>Warrior</span>
           <span><i class="key" style="background:#d55181"></i>Raider</span>
           <span><i class="key" style="background:#a32222"></i>Predator</span>
@@ -468,6 +470,7 @@
           <span><span class="swatch" style="background:var(--role-worker)"></span>Workers <b id="n-worker">0</b></span>
           <span><span class="swatch" style="background:var(--role-scout)"></span>Scouts <b id="n-scout">0</b></span>
           <span><span class="swatch" style="background:var(--role-soldier)"></span>Soldiers <b id="n-soldier">0</b></span>
+          <span><span class="swatch" style="background:var(--praetorian)"></span>Guard <b id="n-praetorian">0</b></span>
         </div>
 
         <div class="row">
@@ -511,6 +514,13 @@
         <div class="slider-row">
           <div class="head"><span class="label">Scouts</span><span class="value" id="v-scout-target">8%</span></div>
           <input type="range" id="scout-slider" min="0" max="35" value="8">
+        </div>
+        <div class="slider-row">
+          <div class="head"><span class="label">Praetorian guard</span><span class="value" id="v-praetorian-target">3</span></div>
+          <input type="range" id="praetorian-slider" min="0" max="6" value="3">
+          <div class="policy-note">Soldiers who fight off an intruder in the queen's chamber are
+            promoted, up to this many. They never leave her — not for a mark, a thief, or a recall —
+            and they never forage.</div>
         </div>
         <div class="policy-note">Targets shape which caste the queen raises next, not existing ants.
           Soldiers are what keep the queen alive — but they don't forage, so

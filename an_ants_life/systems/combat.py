@@ -35,11 +35,46 @@ def _drop_loot(state, enemy) -> None:
 
 
 def _atk_for_role(cfg, role: Role) -> int:
-    if role == Role.SOLDIER:
+    if role in (Role.SOLDIER, Role.PRAETORIAN):
         return cfg.ANT_SOLDIER_ATK
     if role == Role.SCOUT:
         return cfg.ANT_SCOUT_ATK
     return cfg.ANT_WORKER_ATK
+
+
+def _maybe_promote(state, ant) -> None:
+    """A soldier that fought an intruder inside the queen's chamber is
+    raised to the praetorian guard.
+
+    Promotion is earned at the spot that decides the game rather than
+    bought, and it is capped by the colony's standing orders so the
+    player chooses how much of the army to lock down at home.
+    """
+    cfg = state.cfg
+    if not cfg.PRAETORIAN_ENABLE or ant.role is not Role.SOLDIER:
+        return
+
+    nest_x, nest_y = state.nest_pos
+    dx, dy = ant.x - nest_x, ant.y - nest_y
+    if dx * dx + dy * dy > cfg.PRAETORIAN_CHAMBER_RADIUS ** 2:
+        return
+
+    want = min(state.policy.praetorian_target, cfg.PRAETORIAN_MAX)
+    current = sum(1 for a in state.colony.ants if a.role is Role.PRAETORIAN)
+    if current >= want:
+        return
+
+    ant.role = Role.PRAETORIAN
+    ant.hp = min(cfg.ANT_HP_MAX + cfg.PRAETORIAN_BONUS_HP,
+                 ant.hp + cfg.PRAETORIAN_BONUS_HP)
+    state.colony.metrics["praetorians_raised"] += 1
+    state.history.emit(
+        state.t, state.tick, EventKind.PRAETORIAN_RAISED,
+        {"ant_id": ant.id, "count": current + 1},
+        cause="defended_the_queen",
+        impact={"praetorians": 1},
+        tags=["growth", "queen"]
+    )
 
 
 def update_combat(state, dt: float) -> None:
@@ -91,6 +126,10 @@ def update_combat(state, dt: float) -> None:
                     impact={"ants_killed": 1},
                     tags=["combat"]
                 )
+            else:
+                # Survived a fight; if it was in the queen's chamber, that
+                # is what earns a place in her guard.
+                _maybe_promote(state, ant)
             break
 
     nest_x, nest_y = state.nest_pos

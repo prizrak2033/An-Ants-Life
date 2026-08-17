@@ -62,6 +62,8 @@ _PHRASINGS: Dict[str, Callable[[HistoryEvent], str]] = {
     EventKind.OBJ_CLAIMED:
         lambda e: "A food site is secured and claimed.",
 
+    EventKind.PRAETORIAN_RAISED:
+        lambda e: "A soldier who held the queen's chamber is raised to her guard.",
     EventKind.DIRECTIVE_PLACED:
         lambda e: {
             "FORAGE": "Scent is laid toward a new foraging ground.",

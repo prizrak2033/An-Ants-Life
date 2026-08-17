@@ -91,6 +91,22 @@ def choose_intent(state: 'GameState', ant: 'Ant', dt: float = 1.0 / 30.0) -> Int
     nest = state.nest_pos  # Use cached nest position
     board = state.directives
 
+    # Praetorians hold the queen's chamber and nothing moves them - not a
+    # defend mark, not a fleeing thief, not a recall. That immovability is
+    # the whole of what they offer, which is why they are checked before
+    # every other consideration.
+    if ant.role == Role.PRAETORIAN:
+        # Leashed to the chamber: chasing something to the edge of its
+        # reach must not become chasing it across the map.
+        if math.hypot(ant.x - nest[0], ant.y - nest[1]) > cfg.PRAETORIAN_GUARD_RADIUS:
+            return Intent(target=nest, deposit_channel="home")
+        e, _ = _closest_enemy(state, ant.x, ant.y, cfg.PRAETORIAN_GUARD_RADIUS)
+        if e is not None:
+            return Intent(target=(e.x, e.y), deposit_channel="home")
+        return Intent(
+            target=_rand_point(cfg, nest[0], nest[1], cfg.PRAETORIAN_GUARD_RADIUS * 0.7),
+            deposit_channel="home")
+
     # Rally: the colony pulls back to the nest. Foraging stops entirely,
     # which is the cost - soldiers still answer anything already on top
     # of them, since falling back is not the same as refusing to fight.

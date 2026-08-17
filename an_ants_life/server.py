@@ -52,7 +52,7 @@ def _garrison(state: GameState) -> dict:
     radius_sq = 22.0 * 22.0
     total = home = 0
     for a in state.colony.ants:
-        if a.role is not Role.SOLDIER:
+        if a.role not in (Role.SOLDIER, Role.PRAETORIAN):
             continue
         total += 1
         dx, dy = a.x - nest_x, a.y - nest_y
@@ -172,6 +172,8 @@ def _build_snapshot(state: GameState, paused: bool, save_note: Optional[str] = N
             "max_soldier": cfg.POLICY_MAX_SOLDIER_FRAC,
             "max_per_kind": cfg.DIRECTIVE_MAX_PER_KIND,
             "defend_share": cfg.DIRECTIVE_DEFEND_MAX_SHARE,
+            "praetorian_target": state.policy.praetorian_target,
+            "max_praetorian": cfg.PRAETORIAN_MAX,
         },
         "ending": state.ending,
         "ending_text": _ending_text(state),
@@ -274,10 +276,13 @@ class SimRunner:
         )
         if cmd.get("auto_defense") is not None:
             state.policy.auto_defense = bool(cmd["auto_defense"])
+        if cmd.get("praetorian") is not None:
+            state.policy.set_praetorian_target(self.cfg, int(cmd["praetorian"]))
         state.history.emit(
             state.t, state.tick, EventKind.POLICY_CHANGED,
             {"text": (f"Standing orders change: {state.policy.soldier_target:.0%} soldiers, "
-                      f"{state.policy.scout_target:.0%} scouts."),
+                      f"{state.policy.scout_target:.0%} scouts, "
+                      f"{state.policy.praetorian_target} praetorians."),
              "scout": state.policy.scout_target,
              "soldier": state.policy.soldier_target,
              "auto_defense": state.policy.auto_defense},
