@@ -28,6 +28,23 @@ def _rand_point(cfg, cx: float, cy: float, r: float) -> Tuple[float, float]:
     return x, y
 
 
+def _wander_point(cfg, ant: 'Ant', radius: float, turn_spread: float = 0.35) -> Tuple[float, float]:
+    """Pick a wander target that mostly continues the ant's current heading,
+    with a small random turn each tick, instead of a fresh independent
+    direction every tick. An independent direction each tick averages out
+    to a slow, memoryless random walk; persisting heading (a "correlated"
+    random walk) covers ground far faster, closer to how real foragers move.
+    """
+    if ant.vx or ant.vy:
+        heading = math.atan2(ant.vy, ant.vx)
+    else:
+        heading = random.uniform(0, 2 * math.pi)
+    heading += random.uniform(-turn_spread, turn_spread)
+    x = min(max(0.0, ant.x + math.cos(heading) * radius), cfg.WORLD_W)
+    y = min(max(0.0, ant.y + math.sin(heading) * radius), cfg.WORLD_H)
+    return x, y
+
+
 def _closest_enemy(state: 'GameState', x: float, y: float, radius: float) -> Tuple[Optional[object], float]:
     """Find the closest enemy within radius using squared distance for performance.
     
@@ -76,14 +93,16 @@ def choose_intent(state: 'GameState', ant: 'Ant') -> Intent:
         pt = state.pheromones.sample_best_direction("food", (ant.x, ant.y), step=cfg.PHERO_FOLLOW_STEP)
         if pt is not None:
             return Intent(target=pt, deposit_channel="food")
-        # wander
-        return Intent(target=_rand_point(cfg, ant.x, ant.y, 20.0), deposit_channel="food")
+        # wander, persisting heading so exploration actually covers ground
+        return Intent(target=_wander_point(cfg, ant, 20.0), deposit_channel="food")
 
-    # Scouts: wide roam, sense food, mark home lightly
+    # Scouts: wide roam, sense food, mark home lightly, return home when carrying
+    if ant.carrying > 0:
+        return Intent(target=nest, deposit_channel="home")
     src = state.world.nearest_food((ant.x, ant.y), cfg.ANT_SENSE_RADIUS)
     if src is not None:
         return Intent(target=(src.x, src.y), deposit_channel="food")
     pt = state.pheromones.sample_best_direction("food", (ant.x, ant.y), step=cfg.PHERO_FOLLOW_STEP)
     if pt is not None and random.random() < 0.4:
         return Intent(target=pt, deposit_channel="food")
-    return Intent(target=_rand_point(cfg, nest[0], nest[1], 42.0), deposit_channel="home")
+    return Intent(target=_wander_point(cfg, ant, 42.0, turn_spread=0.25), deposit_channel="home")
