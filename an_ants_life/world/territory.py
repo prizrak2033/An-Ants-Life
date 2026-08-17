@@ -56,7 +56,7 @@ class TerritoryModel:
             self._add(ant.x, ant.y, infl)
 
         for enemy in state.enemies:
-            self._add(enemy.x, enemy.y, -cfg.REDANT_TERR_INFLUENCE)
+            self._add(enemy.x, enemy.y, -enemy.terr_influence)
 
         new_grid = [[0.0] * self.rows for _ in range(self.cols)]
         for cx in range(self.cols):

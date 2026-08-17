@@ -7,7 +7,9 @@ const ctx = canvas.getContext("2d");
 // Palette (mirrors the CSS custom properties in index.html; canvas fills
 // need raw RGB for alpha blending, so they're duplicated here as tuples).
 const ROLE_COLOR = { WORKER: "#199e70", SCOUT: "#c98500", SOLDIER: "#9085e9" };
-const ENEMY_COLOR = "#e66767";
+// Enemy kinds share the red "hostile" family so they read as threats at a
+// glance, separated by shape and lightness rather than unrelated hues.
+const ENEMY_COLOR = { WARRIOR: "#e66767", RAIDER: "#d55181", PREDATOR: "#a32222" };
 const FOOD_COLOR = "#fab219";
 const CLAIMED_COLOR = "#3987e5";
 const QUEEN_COLOR = "#ffffff";
@@ -103,12 +105,34 @@ function drawFoodSources(sources, scaleX, scaleY) {
 }
 
 function drawEnemies(enemies, scaleX, scaleY) {
-  ctx.fillStyle = ENEMY_COLOR;
-  for (const [x, y] of enemies) {
+  for (const [x, y, kind, laden] of enemies) {
     const px = x * scaleX, py = y * scaleY;
-    ctx.beginPath();
-    ctx.arc(px, py, 2.6, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = ENEMY_COLOR[kind] || ENEMY_COLOR.WARRIOR;
+
+    if (kind === "PREDATOR") {
+      // Bigger diamond: a predator is a single heavy threat, not one of a swarm.
+      ctx.beginPath();
+      ctx.moveTo(px, py - 4.4); ctx.lineTo(px + 4.4, py);
+      ctx.lineTo(px, py + 4.4); ctx.lineTo(px - 4.4, py);
+      ctx.closePath();
+      ctx.fill();
+    } else if (kind === "RAIDER") {
+      ctx.beginPath();
+      ctx.arc(px, py, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      if (laden) {
+        // Gold ring marks a thief worth chasing - kill it and the food drops.
+        ctx.beginPath();
+        ctx.arc(px, py, 5.0, 0, Math.PI * 2);
+        ctx.strokeStyle = FOOD_COLOR;
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+      }
+    } else {
+      ctx.beginPath();
+      ctx.arc(px, py, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }
 
@@ -192,6 +216,13 @@ function updateSidebar(data) {
 
   document.getElementById("v-pressure").textContent = `${Math.round(data.colony.pressure * 100)}%`;
   document.getElementById("bar-pressure").style.width = `${data.colony.pressure * 100}%`;
+
+  const ec = data.enemy_counts || {};
+  document.getElementById("n-warrior").textContent = ec.WARRIOR || 0;
+  document.getElementById("n-raider").textContent = ec.RAIDER || 0;
+  document.getElementById("n-predator").textContent = ec.PREDATOR || 0;
+  document.getElementById("m-stolen").textContent = (data.metrics.food_stolen || 0).toFixed(1);
+  document.getElementById("m-recovered").textContent = (data.metrics.loot_recovered || 0).toFixed(1);
 
   document.getElementById("chapter-banner").textContent = data.chapter.active ? data.chapter.title : "A quiet colony, no chapter underway.";
 

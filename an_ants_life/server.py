@@ -19,9 +19,17 @@ from pathlib import Path
 from config import SimConfig
 from state import GameState
 from systems.time import Timekeeper
+from enemies.kinds import EnemyKind
 
 WEB_DIR = Path(__file__).parent / "web"
 DEFAULT_PORT = 8765
+
+
+def _count_kinds(enemies) -> dict:
+    counts = {k.value: 0 for k in EnemyKind}
+    for e in enemies:
+        counts[e.kind.value] += 1
+    return counts
 
 
 def _build_snapshot(state: GameState, paused: bool) -> dict:
@@ -47,6 +55,7 @@ def _build_snapshot(state: GameState, paused: bool) -> dict:
             "pressure": round(colony.emergency.get("territory_pressure", 0.0), 3),
             "population": len(colony.ants),
         },
+        "enemy_counts": _count_kinds(state.enemies),
         "metrics": dict(colony.metrics),
         # Ants/enemies/food are packed as flat arrays (not objects) to keep
         # the payload small at ~10 snapshots/sec: [x, y, role, carrying]
@@ -54,7 +63,11 @@ def _build_snapshot(state: GameState, paused: bool) -> dict:
             [a.x, a.y, a.role.value, 1 if a.carrying > 0 else 0]
             for a in colony.ants
         ],
-        "enemies": [[e.x, e.y] for e in state.enemies],
+        # [x, y, kind, carrying_loot]
+        "enemies": [
+            [e.x, e.y, e.kind.value, 1 if e.carrying > 0 else 0]
+            for e in state.enemies
+        ],
         "food_sources": [
             [s.x, s.y, round(s.amount, 1), 1 if s.claimed else 0]
             for s in state.world.food_sources

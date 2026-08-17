@@ -19,10 +19,14 @@ class WorldMap:
 
     def _spawn_food_source(self) -> None:
         cfg = self.cfg
+        # Keep piles off the very border: edge-hugging food is awkward to
+        # work, and it let laden raiders leave the map almost the instant
+        # they finished looting.
+        m = cfg.FOOD_SOURCE_EDGE_MARGIN
         x, y = cfg.NEST_X, cfg.NEST_Y
         for _ in range(20):
-            x = random.uniform(0, cfg.WORLD_W)
-            y = random.uniform(0, cfg.WORLD_H)
+            x = random.uniform(m, cfg.WORLD_W - m)
+            y = random.uniform(m, cfg.WORLD_H - m)
             if math.hypot(x - cfg.NEST_X, y - cfg.NEST_Y) >= cfg.FOOD_SOURCE_MIN_DIST_FROM_NEST:
                 break
         self.food_sources.append(

@@ -1,14 +1,20 @@
 """
-Enemy spawning and movement: red ants intrude from the map edges, more
-often as border pressure rises, and advance toward the nest.
+Enemy spawning and movement.
+
+Intruders arrive from the map edges, more often as border pressure
+rises, then act on their own agenda: warriors drive at the nest,
+raiders rob food and run, predators hunt foragers in the open.
 """
 from __future__ import annotations
 import math
 import random
-from typing import Tuple
+from typing import Optional, Tuple
 
-from enemies.red_ant import RedAnt
+from enemies.kinds import EnemyKind
+from enemies.enemy import Enemy, make_enemy
 from colony.history import EventKind
+
+_KINDS = (EnemyKind.WARRIOR, EnemyKind.RAIDER, EnemyKind.PREDATOR)
 
 
 def _spawn_point(cfg) -> Tuple[float, float]:
@@ -22,30 +28,156 @@ def _spawn_point(cfg) -> Tuple[float, float]:
     return float(cfg.WORLD_W), random.uniform(0, cfg.WORLD_H)
 
 
+def _steer(cfg, enemy: Enemy, tx: float, ty: float, dt: float) -> None:
+    dx, dy = tx - enemy.x, ty - enemy.y
+    d = math.hypot(dx, dy) + 1e-6
+    enemy.vx, enemy.vy = (dx / d) * enemy.speed, (dy / d) * enemy.speed
+    enemy.x = min(max(0.0, enemy.x + enemy.vx * dt), cfg.WORLD_W)
+    enemy.y = min(max(0.0, enemy.y + enemy.vy * dt), cfg.WORLD_H)
+
+
+def _nearest_ant(state, enemy: Enemy, radius: float):
+    best, best_sq = None, radius * radius
+    for ant in state.colony.ants:
+        dx, dy = ant.x - enemy.x, ant.y - enemy.y
+        d_sq = dx * dx + dy * dy
+        if d_sq < best_sq:
+            best_sq, best = d_sq, ant
+    return best
+
+
+def _nearest_food(state, enemy: Enemy) -> Optional[object]:
+    best, best_sq = None, float("inf")
+    for src in state.world.food_sources:
+        if src.amount <= 0:
+            continue
+        dx, dy = src.x - enemy.x, src.y - enemy.y
+        d_sq = dx * dx + dy * dy
+        if d_sq < best_sq:
+            best_sq, best = d_sq, src
+    return best
+
+
+def _pick_kind(cfg) -> EnemyKind:
+    return random.choices(
+        _KINDS,
+        weights=[cfg.ENEMY_WEIGHT_WARRIOR, cfg.ENEMY_WEIGHT_RAIDER, cfg.ENEMY_WEIGHT_PREDATOR],
+    )[0]
+
+
 def update_enemies(state, dt: float) -> None:
     cfg = state.cfg
-    if not cfg.REDANT_ENABLE:
+    if not cfg.ENEMY_ENABLE:
         return
 
     pressure = state.colony.emergency.get("territory_pressure", 0.0)
-    spawn_chance = cfg.REDANT_BASE_SPAWN_CHANCE_PER_TICK * (1.0 + pressure * cfg.REDANT_SPAWN_PRESSURE_MULT)
+    spawn_chance = cfg.ENEMY_BASE_SPAWN_CHANCE_PER_TICK * (1.0 + pressure * cfg.ENEMY_SPAWN_PRESSURE_MULT)
 
-    if len(state.enemies) < cfg.REDANT_MAX_ALIVE and random.random() < spawn_chance:
+    if len(state.enemies) < cfg.ENEMY_MAX_ALIVE and random.random() < spawn_chance:
         x, y = _spawn_point(cfg)
-        enemy = RedAnt(id=state._next_enemy_id, x=x, y=y, hp=cfg.REDANT_HP)
+        kind = _pick_kind(cfg)
+        enemy = make_enemy(cfg, state._next_enemy_id, kind, x, y)
         state._next_enemy_id += 1
         state.enemies.append(enemy)
         state.history.emit(
             state.t, state.tick, EventKind.ENEMY_SPAWN,
-            {"enemy_id": enemy.id, "x": round(x, 1), "y": round(y, 1)},
+            {"enemy_id": enemy.id, "kind": kind.value, "x": round(x, 1), "y": round(y, 1)},
             cause="border_pressure",
             tags=["enemy"]
         )
 
-    nest_x, nest_y = state.nest_pos
     for enemy in state.enemies:
-        dx, dy = nest_x - enemy.x, nest_y - enemy.y
-        d = math.hypot(dx, dy) + 1e-6
-        enemy.vx, enemy.vy = (dx / d) * cfg.REDANT_SPEED, (dy / d) * cfg.REDANT_SPEED
-        enemy.x += enemy.vx * dt
-        enemy.y += enemy.vy * dt
+        if enemy.kind == EnemyKind.RAIDER:
+            _update_raider(state, cfg, enemy, dt)
+        elif enemy.kind == EnemyKind.PREDATOR:
+            _update_predator(state, cfg, enemy, dt)
+        else:
+            _steer(cfg, enemy, state.nest_pos[0], state.nest_pos[1], dt)
+
+    if any(e.escaped for e in state.enemies):
+        state.enemies = [e for e in state.enemies if not e.escaped]
+
+
+def _update_raider(state, cfg, enemy: Enemy, dt: float) -> None:
+    if enemy.fleeing:
+        # Hauls the loot back to where it entered rather than bolting for
+        # whichever edge is nearest - that run is what soldiers intercept.
+        _steer(cfg, enemy, enemy.spawn_x, enemy.spawn_y, dt)
+        if math.hypot(enemy.x - enemy.spawn_x, enemy.y - enemy.spawn_y) <= 1.0:
+            enemy.escaped = True
+            state.colony.metrics["food_stolen"] += enemy.carrying
+            state.history.emit(
+                state.t, state.tick, EventKind.ENEMY_ESCAPE,
+                {"enemy_id": enemy.id, "amt": round(enemy.carrying, 1)},
+                cause="raid_escaped",
+                impact={"food_lost": float(enemy.carrying)},
+                tags=["enemy", "raid"]
+            )
+        return
+
+    src = _nearest_food(state, enemy)
+    if src is None:
+        # Nothing left in the field - go rob the colony's own stores.
+        nest_x, nest_y = state.nest_pos
+        if math.hypot(enemy.x - nest_x, enemy.y - nest_y) <= cfg.RAIDER_STEAL_RADIUS:
+            if _load_up(state, cfg, enemy, dt):
+                taken = min(cfg.RAIDER_STEAL_AMOUNT, state.colony.food_store)
+                state.colony.food_store -= taken
+                _begin_flight(cfg, enemy, taken)
+                _emit_steal(state, enemy, taken, "nest_stores")
+        else:
+            _steer(cfg, enemy, nest_x, nest_y, dt)
+        return
+
+    if math.hypot(enemy.x - src.x, enemy.y - src.y) <= cfg.RAIDER_STEAL_RADIUS:
+        if _load_up(state, cfg, enemy, dt):
+            taken = min(cfg.RAIDER_STEAL_AMOUNT, src.amount)
+            src.amount -= taken
+            _begin_flight(cfg, enemy, taken)
+            _emit_steal(state, enemy, taken, "food_source")
+    else:
+        _steer(cfg, enemy, src.x, src.y, dt)
+
+
+def _load_up(state, cfg, enemy: Enemy, dt: float) -> bool:
+    """Hold the raider still while it loads. Returns True once full.
+
+    This pause is the counterplay: it parks the raider next to the pile
+    the colony's own foragers are working, long enough for them to answer.
+    """
+    enemy.vx = enemy.vy = 0.0
+    enemy.steal_progress += dt
+    return enemy.steal_progress >= cfg.RAIDER_STEAL_SECONDS
+
+
+def _begin_flight(cfg, enemy: Enemy, taken: float) -> None:
+    enemy.carrying = taken
+    enemy.fleeing = True
+    enemy.speed = cfg.RAIDER_SPEED * cfg.RAIDER_LADEN_SPEED_MULT
+
+
+def _emit_steal(state, enemy: Enemy, amount: float, target: str) -> None:
+    state.history.emit(
+        state.t, state.tick, EventKind.ENEMY_STEAL,
+        {"enemy_id": enemy.id, "amt": round(amount, 1), "target": target},
+        cause="raid",
+        impact={"food_at_risk": float(amount)},
+        tags=["enemy", "raid"]
+    )
+
+
+def _update_predator(state, cfg, enemy: Enemy, dt: float) -> None:
+    prey = _nearest_ant(state, enemy, cfg.PREDATOR_HUNT_RADIUS)
+    if prey is not None:
+        _steer(cfg, enemy, prey.x, prey.y, dt)
+        return
+
+    # No prey in range: prowl, holding a heading so it sweeps ground
+    # instead of jittering in place.
+    if enemy.vx or enemy.vy:
+        heading = math.atan2(enemy.vy, enemy.vx) + random.uniform(-0.25, 0.25)
+    else:
+        heading = random.uniform(0, 2 * math.pi)
+    _steer(cfg, enemy,
+           enemy.x + math.cos(heading) * 20.0,
+           enemy.y + math.sin(heading) * 20.0, dt)

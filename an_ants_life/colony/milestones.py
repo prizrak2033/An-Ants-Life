@@ -31,12 +31,18 @@ class MilestoneTracker:
         raids_recent = state.history.any_since(window_start, [EventKind.EMERGENCY_RAID, EventKind.ENEMY_KILL, EventKind.QUEEN_HIT])
         border_recent = state.history.any_since(window_start, [EventKind.TERR_BORDER_INCIDENT])
         claims_recent = state.history.any_since(window_start, [EventKind.OBJ_CLAIMED])
+        theft_recent = state.history.any_since(window_start, [EventKind.ENEMY_ESCAPE])
+        loot_recovered_recent = state.history.any_since(window_start, [EventKind.ENEMY_LOOT_RECOVERED])
 
         title: Optional[str] = None
-        if famine_active and pressure >= 0.65 and raids_recent:
+        if famine_active and theft_recent:
+            title = "Chapter: The Season of Thieves"
+        elif famine_active and pressure >= 0.65 and raids_recent:
             title = "Chapter: The Hungry Border Winter"
         elif pressure >= 0.78 and raids_recent:
             title = "Chapter: The Red Tide on the Frontier"
+        elif loot_recovered_recent and not famine_active:
+            title = "Chapter: What Was Taken Back"
         elif pressure >= 0.70 and border_recent:
             title = "Chapter: Contested Lines"
         elif claims_recent and pressure <= 0.55 and not famine_active:

@@ -68,13 +68,32 @@ def _closest_enemy(state: 'GameState', x: float, y: float, radius: float) -> Tup
     return best, actual_dist
 
 
+def _closest_laden_raider(state: 'GameState', x: float, y: float, radius: float):
+    """Nearest raider actually carrying stolen food, if any is in range."""
+    best = None
+    best_dist_sq = radius * radius
+    for e in state.enemies:
+        if e.carrying <= 0:
+            continue
+        dx = e.x - x
+        dy = e.y - y
+        dist_sq = dx * dx + dy * dy
+        if dist_sq < best_dist_sq:
+            best_dist_sq = dist_sq
+            best = e
+    return best
+
+
 def choose_intent(state: 'GameState', ant: 'Ant') -> Intent:
     """Choose the next action for an ant based on its role and current state."""
     cfg = state.cfg
     nest = state.nest_pos  # Use cached nest position
 
-    # Soldiers: intercept nearest enemy near nest / within scan radius
+    # Soldiers: run down food thieves first, else intercept nearby enemies
     if ant.role == Role.SOLDIER:
+        thief = _closest_laden_raider(state, ant.x, ant.y, cfg.SOLDIER_RECOVERY_RADIUS)
+        if thief is not None:
+            return Intent(target=(thief.x, thief.y), deposit_channel="home")
         e, d = _closest_enemy(state, ant.x, ant.y, cfg.COMBAT_SCAN_RADIUS)
         if e is not None:
             return Intent(target=(e.x, e.y), deposit_channel="home")

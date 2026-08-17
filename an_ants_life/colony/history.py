@@ -28,6 +28,9 @@ class EventKind:
     ENEMY_CONTACT = "enemy_contact"
     ENEMY_KILL = "enemy_kill"
     ENEMY_DEATH = "enemy_death"
+    ENEMY_STEAL = "enemy_steal"
+    ENEMY_ESCAPE = "enemy_escape"
+    ENEMY_LOOT_RECOVERED = "enemy_loot_recovered"
 
     # Queen
     QUEEN_HIT = "queen_hit"

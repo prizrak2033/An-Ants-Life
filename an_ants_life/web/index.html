@@ -246,7 +246,9 @@
           <span><i class="key" style="background:var(--role-worker)"></i>Worker</span>
           <span><i class="key" style="background:var(--role-scout)"></i>Scout</span>
           <span><i class="key" style="background:var(--role-soldier)"></i>Soldier</span>
-          <span><i class="key" style="background:var(--enemy)"></i>Red ant</span>
+          <span><i class="key" style="background:#e66767"></i>Warrior</span>
+          <span><i class="key" style="background:#d55181"></i>Raider</span>
+          <span><i class="key" style="background:#a32222"></i>Predator</span>
           <span><i class="key" style="background:var(--food)"></i>Food</span>
           <span><i class="key key-sq" style="background:#fab219"></i>Supply trail</span>
           <span><i class="key key-sq" style="background:#9aa4b2"></i>Explored</span>
@@ -276,6 +278,17 @@
 
         <div class="row"><span class="label">Territory pressure</span><span class="value" id="v-pressure">0%</span></div>
         <div class="bar-track"><div class="bar-fill" id="bar-pressure" style="background:var(--claimed)"></div></div>
+      </div>
+
+      <div class="panel">
+        <h2>Threats</h2>
+        <div class="roster">
+          <span><span class="swatch" style="background:#e66767"></span>Warriors <b id="n-warrior">0</b></span>
+          <span><span class="swatch" style="background:#d55181"></span>Raiders <b id="n-raider">0</b></span>
+          <span><span class="swatch" style="background:#a32222"></span>Predators <b id="n-predator">0</b></span>
+        </div>
+        <div class="row"><span class="label">Food stolen</span><span class="value" id="m-stolen">0</span></div>
+        <div class="row"><span class="label">Loot recovered</span><span class="value" id="m-recovered">0</span></div>
       </div>
 
       <div class="panel">

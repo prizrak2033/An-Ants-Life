@@ -36,6 +36,8 @@ class ColonyState:
         "expansions": 0,
         "claims": 0,
         "enemy_kills": 0,
+        "food_stolen": 0.0,
+        "loot_recovered": 0.0,
     })
 
     def __post_init__(self):

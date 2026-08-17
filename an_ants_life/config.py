@@ -29,6 +29,11 @@ class SimConfig:
 
     ANT_SPEED: float = 40.0
     ANT_SENSE_RADIUS: float = 18.0
+    # Soldiers break off to run down a raider that is actually carrying
+    # loot, well beyond their normal nest patrol. Laden raiders are slower
+    # than an ant, so this is a chase the colony can win - and it is the
+    # only way stolen food ever comes back.
+    SOLDIER_RECOVERY_RADIUS: float = 48.0
 
     # Food sources
     INITIAL_FOOD_SOURCES: int = 6
@@ -85,14 +90,60 @@ class SimConfig:
     TERR_HOME_BIAS_VALUE: float = 0.6
     TERR_PRESSURE_SAMPLE_RADIUS_CELLS: int = 4
 
-    # Enemies: Red ants
-    REDANT_ENABLE: bool = True
-    REDANT_BASE_SPAWN_CHANCE_PER_TICK: float = 0.0028
-    REDANT_SPAWN_PRESSURE_MULT: float = 1.0
-    REDANT_MAX_ALIVE: int = 5
-    REDANT_SPEED: float = 28.0
-    REDANT_HP: int = 3
-    REDANT_TERR_INFLUENCE: float = 0.16
+    # Enemies (shared)
+    ENEMY_ENABLE: bool = True
+    ENEMY_BASE_SPAWN_CHANCE_PER_TICK: float = 0.0028
+    ENEMY_SPAWN_PRESSURE_MULT: float = 1.0
+    # Four rather than the five of the single-enemy era: each kind is
+    # individually more dangerous than the old uniform red ant, so the same
+    # concurrent cap measured considerably harsher.
+    ENEMY_MAX_ALIVE: int = 4
+
+    # Spawn mix. Warriors stay the most common threat so nest defence
+    # remains the baseline concern; predators are rare because they are
+    # individually expensive to deal with.
+    ENEMY_WEIGHT_WARRIOR: float = 0.52
+    ENEMY_WEIGHT_RAIDER: float = 0.36
+    ENEMY_WEIGHT_PREDATOR: float = 0.08
+
+    # Warrior: the classic red ant - drives at the nest, hits the queen.
+    WARRIOR_HP: int = 3
+    WARRIOR_SPEED: float = 28.0
+    WARRIOR_ATK: int = 1
+    WARRIOR_TERR_INFLUENCE: float = 0.16
+
+    # Raider: fast and fragile. Ignores the queen, robs a food source and
+    # runs for the edge; food that leaves the map is gone for good, so
+    # intercepting one before it escapes is the whole counterplay.
+    # Tough enough to usually survive the loot pause. At 2 HP a raider died
+    # to two worker hits every time, and since trails concentrate foragers
+    # exactly at food piles it never once got away - which made both the
+    # theft and the recovery chase dead mechanics.
+    RAIDER_HP: int = 5
+    RAIDER_SPEED: float = 34.0
+    RAIDER_ATK: int = 1
+    RAIDER_TERR_INFLUENCE: float = 0.10
+    RAIDER_STEAL_AMOUNT: float = 8.0
+    RAIDER_STEAL_RADIUS: float = 3.0
+    # Looting holds the raider still beside the pile, and the load slows
+    # its run for the edge. Without both, the counterplay does not exist:
+    # sources often sit near an edge, so a grab-and-go raider was clear of
+    # the map about 0.14s after stealing - roughly four ticks, when the
+    # combat cooldown alone is ten.
+    RAIDER_STEAL_SECONDS: float = 2.5
+    RAIDER_LADEN_SPEED_MULT: float = 0.55
+
+    # Predator: a solitary hunter. Slow, tanky, hits hard, and cares about
+    # neither the queen nor food - it eats foragers in the open, which is
+    # the one threat that nest-hugging soldiers do not answer.
+    PREDATOR_HP: int = 8
+    PREDATOR_SPEED: float = 22.0
+    # At 2 it two-shot workers, and because a predator actively hunts ants
+    # instead of beelining past them like a warrior, that alone drove
+    # colonies from a ~20-40 population down to single digits.
+    PREDATOR_ATK: int = 1
+    PREDATOR_TERR_INFLUENCE: float = 0.20
+    PREDATOR_HUNT_RADIUS: float = 24.0
 
     # Combat (1)
     COMBAT_ENABLE: bool = True
@@ -104,7 +155,7 @@ class SimConfig:
     ANT_WORKER_ATK: int = 1
     ANT_SCOUT_ATK: int = 1
     ANT_SOLDIER_ATK: int = 3
-    REDANT_ATK: int = 1
+    # Enemy attack lives per kind, in the enemy block above.
 
     # Economy
     #
@@ -120,6 +171,7 @@ class SimConfig:
     FOOD_UPKEEP_PER_ANT_PER_SEC: float = 0.015
     FOOD_RESERVE_BUFFER_SEC: float = 60.0
     FOOD_SOURCE_MIN_DIST_FROM_NEST: float = 20.0
+    FOOD_SOURCE_EDGE_MARGIN: float = 10.0
     FOOD_SOURCE_RESPAWN_SECONDS: float = 38.0
 
     # Growth
