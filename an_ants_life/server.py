@@ -69,6 +69,26 @@ def _count_kinds(enemies) -> dict:
     return counts
 
 
+def _audio_config(cfg: SimConfig) -> dict:
+    """The browser's mix, published from the same config as the sim.
+
+    Keys are lowercased without the AUDIO_ prefix, so AUDIO_DRONE_BASE
+    arrives as levels.drone_base. The page carries matching defaults and
+    merges these over them, so an older page and a newer server disagree
+    only about the values they share.
+    """
+    levels = {
+        name[len("AUDIO_"):].lower(): getattr(cfg, name)
+        for name in vars(SimConfig)["__annotations__"]
+        if name.startswith("AUDIO_") and name != "AUDIO_EVENT_VOICES"
+    }
+    events = {
+        kind: [voice, freq, dur, gain]
+        for kind, voice, freq, dur, gain in cfg.AUDIO_EVENT_VOICES
+    }
+    return {"levels": levels, "events": events}
+
+
 def _build_snapshot(state: GameState, paused: bool, save_note: Optional[str] = None) -> dict:
     cfg = state.cfg
     colony = state.colony
@@ -372,6 +392,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, "application/javascript; charset=utf-8", (WEB_DIR / "app.js").read_bytes())
         elif self.path == "/audio.js":
             self._send(200, "application/javascript; charset=utf-8", (WEB_DIR / "audio.js").read_bytes())
+        elif self.path == "/audio-config":
+            # Its own route rather than a block on /state: the mix is
+            # fixed for the session and /state is polled several times a
+            # second, so this is fetched once at load.
+            self._send(200, "application/json",
+                       json.dumps(_audio_config(self.server.runner.cfg)).encode("utf-8"))
         elif self.path == "/state":
             body = json.dumps(self.server.runner.get_snapshot()).encode("utf-8")
             self._send(200, "application/json", body)

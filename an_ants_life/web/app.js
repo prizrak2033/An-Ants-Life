@@ -75,6 +75,19 @@ let sliderHeld = null;
 let dismissedEnding = null;
 
 const audio = new ColonyAudio();
+// The mix is defined in config.py. Fetched once, since it is fixed for
+// the session, and failure is survivable - audio.js carries matching
+// defaults, so an unreachable route costs the server's values, not the
+// sound. Nothing is audible until the sound button is pressed anyway,
+// which leaves this ample time to land.
+fetch("/audio-config")
+  .then((r) => (r.ok ? r.json() : null))
+  .then((cfg) => {
+    applyAudioConfig(cfg);
+    audio.setVolume(AUDIO_LEVELS.default_volume);
+    volumeSlider.value = Math.round(AUDIO_LEVELS.default_volume * 100);
+  })
+  .catch(() => {});
 // Sound follows the chronicle, which is already significance-filtered.
 // Entries are keyed by timestamp so only genuinely new beats fire, and
 // a fresh colony resets the mark rather than replaying its whole past.

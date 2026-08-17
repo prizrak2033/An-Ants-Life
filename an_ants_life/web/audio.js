@@ -8,8 +8,43 @@
 // per forage delivery would be a machine gun rather than information.
 "use strict";
 
+// The mix lives in an_ants_life/config.py alongside the rest of the
+// tuning and arrives from /audio-config. What follows are fallbacks that
+// mirror it, so an unreachable or older server leaves the page audible
+// rather than silent. Both objects are mutated in place by
+// applyAudioConfig, never reassigned, because the mixer and the page
+// hold references to them from load.
+const AUDIO_LEVELS = {
+  default_volume: 0.6,
+
+  drone_base: 0.02,
+  drone_per_pop: 0.02,
+  drone_dead: 0.008,
+  drone_pop_reference: 30,
+  drone_cutoff_min: 160,
+  drone_cutoff_range: 340,
+
+  threat_level: 0.055,
+  threat_lfo_depth: 0.05,
+  threat_freq: 44,
+  threat_lfo_freq: 1.6,
+
+  chitter_level: 0.05,
+  chitter_income_reference: 2.2,
+  chitter_max_rate: 0.9,
+
+  limiter_knee: 0.6,
+  noise_crest_trim: 0.63,
+
+  // Nothing may retrigger faster than this, per kind (seconds), and no
+  // more than max_voices sound at once. A colony under sustained attack
+  // would otherwise stack dozens of identical voices into mud.
+  event_cooldown: 0.35,
+  max_voices: 8,
+};
+
+// kind -> [voice, base frequency, seconds, level]
 const AUDIO_EVENTS = {
-  // kind -> [voice, base frequency, seconds, gain]
   queen_hit:               ["thud",   70,  0.45, 0.85],
   emergency_raid:          ["noise", 320,  0.55, 0.70],
   emergency_famine_start:  ["fall",  420,  0.90, 0.45],
@@ -34,16 +69,26 @@ const AUDIO_EVENTS = {
   policy_changed:          ["blip",  520,  0.10, 0.12],
 };
 
-// Nothing may retrigger faster than this, per kind (seconds). A colony
-// under sustained attack would otherwise stack dozens of identical
-// voices into mud.
-const EVENT_COOLDOWN = 0.35;
+/** Merge the server's mix over the fallbacks. Safe to call before or
+ *  after a ColonyAudio exists; levels are read at use rather than
+ *  captured, so a late reply still takes effect. The event table is
+ *  replaced wholesale rather than merged - config is the authority on
+ *  which kinds have a voice, and a kind dropped there should fall
+ *  silent, not linger from the defaults. */
+function applyAudioConfig(data) {
+  if (!data) return;
+  Object.assign(AUDIO_LEVELS, data.levels || {});
+  if (data.events) {
+    for (const k of Object.keys(AUDIO_EVENTS)) delete AUDIO_EVENTS[k];
+    Object.assign(AUDIO_EVENTS, data.events);
+  }
+}
 
 class ColonyAudio {
   constructor() {
     this.ctx = null;
     this.enabled = false;
-    this.volume = 0.6;
+    this.volume = AUDIO_LEVELS.default_volume;
     this.lastPlayed = new Map();
     this.voices = 0;
     this._chitterTimer = null;
@@ -113,7 +158,8 @@ class ColonyAudio {
     // loud. Input past +-1 clamps to the endpoints, which is what makes
     // the ceiling hold.
     this.limiter = ctx.createWaveShaper();
-    const n = 2048, curve = new Float32Array(n), knee = 0.6;
+    const n = 2048, curve = new Float32Array(n);
+    const knee = AUDIO_LEVELS.limiter_knee;
     for (let i = 0; i < n; i++) {
       const x = (i / (n - 1)) * 2 - 1;   // input range -1..1
       const a = Math.abs(x);
@@ -163,10 +209,10 @@ class ColonyAudio {
     this.threatGain.gain.value = 0.0;
     const threatOsc = ctx.createOscillator();
     threatOsc.type = "sine";
-    threatOsc.frequency.value = 44;
+    threatOsc.frequency.value = AUDIO_LEVELS.threat_freq;
     const lfo = ctx.createOscillator();
     lfo.type = "sine";
-    lfo.frequency.value = 1.6;
+    lfo.frequency.value = AUDIO_LEVELS.threat_lfo_freq;
     this.threatLfoDepth = ctx.createGain();
     this.threatLfoDepth.gain.value = 0.0;
     lfo.connect(this.threatLfoDepth);
@@ -218,7 +264,7 @@ class ColonyAudio {
     const g = ctx.createGain();
     const now = ctx.currentTime;
     g.gain.setValueAtTime(0.0, now);
-    g.gain.linearRampToValueAtTime(0.05, now + 0.002);
+    g.gain.linearRampToValueAtTime(AUDIO_LEVELS.chitter_level, now + 0.002);
     g.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
     src.connect(bp); bp.connect(g); g.connect(this.limiter);
     src.start(now);
@@ -230,7 +276,9 @@ class ColonyAudio {
     this._state.alive = !data.game_over;
     // Delivery rate stands in for how busy the colony sounds.
     const income = (data.colony && data.colony.income_per_sec) || 0;
-    this._state.activity = Math.max(0, Math.min(0.9, income / 2.2));
+    this._state.activity = Math.max(0, Math.min(
+      AUDIO_LEVELS.chitter_max_rate,
+      income / AUDIO_LEVELS.chitter_income_reference));
     this._state.stress = (data.colony && data.colony.stress) || 0;
 
     const ec = data.enemy_counts || {};
@@ -243,21 +291,20 @@ class ColonyAudio {
 
     // Drone thins out as the colony does, and darkens under stress, so
     // a colony in trouble sounds like one without being told.
+    const L = AUDIO_LEVELS;
     const pop = (data.colony && data.colony.population) || 0;
-    const body = Math.min(1, pop / 30);
-    // Kept well under the events: at 0.05 + 0.05*body the bed measured
-    // 0.061 rms against 0.095 for the loudest one-shot, so it sat on top
-    // of the quiet blips (0.013) rather than beneath them. A bed is
-    // background or it is noise.
+    const body = Math.min(1, pop / L.drone_pop_reference);
     this.droneGain.gain.setTargetAtTime(
-      this._state.alive ? 0.02 + 0.02 * body : 0.008, now, 1.2);
+      this._state.alive ? L.drone_base + L.drone_per_pop * body : L.drone_dead,
+      now, 1.2);
     this.droneFilter.frequency.setTargetAtTime(
-      160 + 340 * (1 - this._state.stress), now, 1.5);
+      L.drone_cutoff_min + L.drone_cutoff_range * (1 - this._state.stress),
+      now, 1.5);
     // Base and modulation depth both track threat, so the throb swells
-    // between roughly silent and 0.11 rather than riding on a floor.
+    // from silence rather than riding on a floor.
     const th = this._state.threat;
-    this.threatGain.gain.setTargetAtTime(0.055 * th, now, 0.8);
-    this.threatLfoDepth.gain.setTargetAtTime(0.05 * th, now, 0.8);
+    this.threatGain.gain.setTargetAtTime(L.threat_level * th, now, 0.8);
+    this.threatLfoDepth.gain.setTargetAtTime(L.threat_lfo_depth * th, now, 0.8);
   }
 
   /** One-shot for a story beat. */
@@ -268,8 +315,8 @@ class ColonyAudio {
 
     const now = this.ctx.currentTime;
     const last = this.lastPlayed.get(kind) || -99;
-    if (now - last < EVENT_COOLDOWN) return;
-    if (this.voices > 8) return;
+    if (now - last < AUDIO_LEVELS.event_cooldown) return;
+    if (this.voices > AUDIO_LEVELS.max_voices) return;
     this.lastPlayed.set(kind, now);
 
     const [voice, freq, dur, gain] = spec;
@@ -298,10 +345,10 @@ class ColonyAudio {
       // highest gain in the set and rendered as the second quietest
       // sound in it. Compensating by the band's share of the spectrum
       // puts a noise burst on the same scale as the tonal voices.
-      // The 0.63 trims for crest factor: matching a noise burst to a
-      // sine on power alone overshoots on peak, because noise peaks well
-      // above its RMS. Calibrated so a raid burst averages level with a
-      // tonal voice of the same requested gain.
+      // noise_crest_trim corrects for crest factor: matching a noise
+      // burst to a sine on power alone overshoots on peak, because noise
+      // peaks well above its RMS. Calibrated so a raid burst averages
+      // level with a tonal voice of the same requested gain.
       //
       // Averages, not matches. The buffer is redrawn at random on every
       // build, and a burst's peak is an extreme value over a short
@@ -309,7 +356,8 @@ class ColonyAudio {
       // a tonal voice is identical every time. The trim centres that
       // spread and keeps its loud tail clear of full scale.
       const band = freq / q;
-      const comp = 0.63 * Math.min(14, Math.sqrt((ctx.sampleRate / 2) / band));
+      const comp = AUDIO_LEVELS.noise_crest_trim
+        * Math.min(14, Math.sqrt((ctx.sampleRate / 2) / band));
       src.connect(bp); bp.connect(g);
       g.gain.setValueAtTime(gain * comp, now);
       g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
@@ -367,3 +415,5 @@ class ColonyAudio {
 
 window.ColonyAudio = ColonyAudio;
 window.AUDIO_EVENTS = AUDIO_EVENTS;
+window.AUDIO_LEVELS = AUDIO_LEVELS;
+window.applyAudioConfig = applyAudioConfig;

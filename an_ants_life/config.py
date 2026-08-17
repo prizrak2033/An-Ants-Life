@@ -6,6 +6,7 @@ ant behavior, combat settings, and various game mechanics.
 """
 
 from dataclasses import dataclass
+from typing import Tuple
 
 
 @dataclass(frozen=True)
@@ -364,6 +365,90 @@ class SimConfig:
     # so the saga survives regardless of this cap.
     HISTORY_MAX_EVENTS: int = 600
     HISTORY_MAX_NOTABLE: int = 240
+
+    # ---- Audio ---------------------------------------------------------
+    # Levels are linear amplitudes on the audio bus, not decibels, and are
+    # summed before a soft ceiling at AUDIO_LIMITER_KNEE. Rough scale: the
+    # loudest one-shot asks for 0.85 and the ambient bed sits near 0.02.
+    #
+    # The browser holds matching defaults so the page still makes sound if
+    # it cannot reach the server, but this is the source of truth. Changing
+    # a level here takes effect on reload, with no rebuild.
+    AUDIO_DEFAULT_VOLUME: float = 0.6
+
+    # Ambient drone: the colony's own body. Thickens with population and
+    # opens up as stress falls, so a colony in trouble sounds like one.
+    # Deliberately far below the one-shots - at 0.05 + 0.05*body it
+    # measured 0.061 rms against 0.095 for the loudest event and sat on
+    # top of the quiet blips rather than beneath them.
+    AUDIO_DRONE_BASE: float = 0.02
+    AUDIO_DRONE_PER_POP: float = 0.02
+    AUDIO_DRONE_DEAD: float = 0.008
+    AUDIO_DRONE_POP_REFERENCE: float = 30.0
+    AUDIO_DRONE_CUTOFF_MIN: float = 160.0
+    AUDIO_DRONE_CUTOFF_RANGE: float = 340.0
+
+    # Threat throb: only present when something is near the nest. Both the
+    # level and the modulation depth scale with threat, so at threat zero
+    # the branch is genuinely silent rather than merely quiet - an LFO
+    # sums into a gain param instead of scaling it, so a fixed depth here
+    # would sound the tone continuously at every threat level.
+    AUDIO_THREAT_LEVEL: float = 0.055
+    AUDIO_THREAT_LFO_DEPTH: float = 0.05
+    AUDIO_THREAT_FREQ: float = 44.0
+    AUDIO_THREAT_LFO_FREQ: float = 1.6
+
+    # Chitter: sparse clicks whose rate follows delivery income, capped so
+    # a thriving colony stays a texture rather than a rattle.
+    AUDIO_CHITTER_LEVEL: float = 0.05
+    AUDIO_CHITTER_INCOME_REFERENCE: float = 2.2
+    AUDIO_CHITTER_MAX_RATE: float = 0.9
+
+    # Below the knee the bus is exactly unity, so a lone event arrives at
+    # the level it asked for; above it the curve bends toward full scale
+    # so stacked voices cannot clip.
+    AUDIO_LIMITER_KNEE: float = 0.6
+    # A bandpass keeps only freq/Q of white noise's spectrum, so noise
+    # bursts are compensated back up. That matches on power, which
+    # overshoots on peak because noise peaks well above its rms; this
+    # trims for crest factor.
+    AUDIO_NOISE_CREST_TRIM: float = 0.63
+
+    # Nothing retriggers faster than this per kind, and no more than
+    # AUDIO_MAX_VOICES sound at once. A colony under sustained attack
+    # would otherwise stack dozens of identical voices into mud.
+    AUDIO_EVENT_COOLDOWN: float = 0.35
+    AUDIO_MAX_VOICES: int = 8
+
+    # One-shots, as (event kind, voice, frequency Hz, seconds, level).
+    # Only events the chronicle already considers worth reporting appear
+    # here; a sound per forage delivery would be a machine gun rather than
+    # information. The level column is the mix - it is what makes a strike
+    # on the queen read as more urgent than a policy tick.
+    AUDIO_EVENT_VOICES: Tuple[Tuple[str, str, float, float, float], ...] = (
+        ("queen_hit",                 "thud",   70.0, 0.45, 0.85),
+        ("emergency_raid",            "noise", 320.0, 0.55, 0.70),
+        ("emergency_famine_start",    "fall",  420.0, 0.90, 0.45),
+        ("emergency_famine_end",      "rise",  330.0, 0.80, 0.40),
+        ("ending",                    "fall",  180.0, 2.40, 0.60),
+
+        ("praetorian_raised",         "chord", 392.0, 0.70, 0.34),
+        ("milestone",                 "chord", 523.0, 0.90, 0.32),
+        ("chapter_start",             "bell",  494.0, 1.60, 0.30),
+        ("chapter_end",               "bell",  330.0, 1.60, 0.24),
+
+        ("enemy_loot_recovered",      "blip",  740.0, 0.20, 0.28),
+        ("enemy_escape",              "fall",  520.0, 0.40, 0.30),
+        ("enemy_steal",               "thud",  140.0, 0.22, 0.30),
+        ("objective_claimed",         "blip",  620.0, 0.16, 0.20),
+        ("territory_expansion",       "blip",  440.0, 0.16, 0.14),
+        ("territory_border_incident", "noise", 240.0, 0.25, 0.26),
+        ("rally_called",              "fall",  300.0, 0.55, 0.40),
+        ("rally_ended",               "rise",  300.0, 0.45, 0.28),
+        ("directive_placed",          "blip",  880.0, 0.12, 0.16),
+        ("emergency_famine_reassign", "blip",  300.0, 0.18, 0.18),
+        ("policy_changed",            "blip",  520.0, 0.10, 0.12),
+    )
 
     # Debug/HUD
     HUD_EVERY_TICKS: int = 15

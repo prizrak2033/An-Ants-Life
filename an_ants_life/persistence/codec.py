@@ -45,12 +45,29 @@ _TERRAIN_BY_CODE = {
 
 # ---------- config ----------
 
+# The AUDIO_* settings are presentation, not simulation state, and are
+# deliberately not saved. Two reasons, one of each kind:
+#
+# Right: a save restores a colony, not a mixing desk. Baking the mix in
+# would pin every old save to the levels that happened to be set when it
+# was written, so retuning the sound would silently not reach them.
+#
+# Necessary: JSON has no tuples, so the event table round-trips as lists
+# of lists. That alone makes a loaded config unequal to an identical
+# fresh one and, because SimConfig is frozen and therefore hashable,
+# unhashable as well. Stripped on read too, not just skipped on write,
+# so any save already carrying the field is handled.
+def _is_persisted(name: str) -> bool:
+    return not name.startswith("AUDIO_")
+
+
 def _config_to_dict(cfg: SimConfig) -> Dict[str, Any]:
-    return {f.name: getattr(cfg, f.name) for f in dataclass_fields(cfg)}
+    return {f.name: getattr(cfg, f.name)
+            for f in dataclass_fields(cfg) if _is_persisted(f.name)}
 
 
 def _config_from_dict(data: Dict[str, Any]) -> SimConfig:
-    known = {f.name for f in dataclass_fields(SimConfig)}
+    known = {f.name for f in dataclass_fields(SimConfig) if _is_persisted(f.name)}
     return SimConfig(**{k: v for k, v in (data or {}).items() if k in known})
 
 
