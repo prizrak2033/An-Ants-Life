@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>An Ant's Life</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #222221;
+    --ink: #ffffff;
+    --ink-secondary: #c3c2b7;
+    --ink-muted: #898781;
+    --border: rgba(255,255,255,0.10);
+
+    --role-worker: #199e70;
+    --role-scout: #c98500;
+    --role-soldier: #9085e9;
+    --enemy: #e66767;
+    --queen: #ffffff;
+    --food: #fab219;
+    --claimed: #3987e5;
+
+    --good: #0ca30c;
+    --critical: #d03b3b;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--page);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: 0.02em;
+  }
+
+  header .tick {
+    font-size: 12px;
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  header .spacer { flex: 1; }
+
+  button {
+    background: var(--surface-2);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button:hover { background: #2a2a28; }
+  button:active { transform: translateY(1px); }
+
+  main {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .stage {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 20px;
+    min-width: 0;
+  }
+
+  #world {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  aside {
+    width: 300px;
+    flex-shrink: 0;
+    padding: 18px;
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+  }
+
+  .panel {
+    margin-bottom: 20px;
+  }
+
+  .panel h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-muted);
+    margin: 0 0 10px;
+    font-weight: 600;
+  }
+
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    padding: 4px 0;
+  }
+
+  .row .label { color: var(--ink-secondary); }
+  .row .value { font-variant-numeric: tabular-nums; }
+
+  .bar-track {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--surface-2);
+    overflow: hidden;
+    margin-top: 3px;
+    margin-bottom: 8px;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 120ms linear;
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--critical);
+    color: #fff;
+  }
+
+  .roster {
+    display: flex;
+    gap: 10px;
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  .roster span { display: flex; align-items: center; gap: 5px; }
+  .swatch {
+    width: 9px; height: 9px; border-radius: 50%; display: inline-block;
+  }
+
+  #chapter-banner {
+    font-size: 13px;
+    color: var(--ink-secondary);
+    font-style: italic;
+    min-height: 1.4em;
+  }
+
+  #chronicle {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 12px;
+    color: var(--ink-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  #chronicle li {
+    border-left: 2px solid var(--border);
+    padding-left: 8px;
+  }
+
+  #game-over-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.72);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 10;
+  }
+  #game-over-overlay.show { display: flex; }
+  #game-over-overlay h2 {
+    font-size: 24px;
+    color: var(--critical);
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>An Ant's Life</h1>
+    <span class="tick" id="tick-readout">tick 0 · t 0.0s</span>
+    <div class="spacer"></div>
+    <button id="pause-btn">Pause</button>
+    <button id="restart-btn">Restart</button>
+  </header>
+
+  <main>
+    <div class="stage">
+      <canvas id="world" width="960" height="560"></canvas>
+    </div>
+
+    <aside>
+      <div class="panel">
+        <h2>Colony</h2>
+        <div class="roster">
+          <span><span class="swatch" style="background:var(--role-worker)"></span>Workers <b id="n-worker">0</b></span>
+          <span><span class="swatch" style="background:var(--role-scout)"></span>Scouts <b id="n-scout">0</b></span>
+          <span><span class="swatch" style="background:var(--role-soldier)"></span>Soldiers <b id="n-soldier">0</b></span>
+        </div>
+
+        <div class="row"><span class="label">Food store</span><span class="value" id="v-food">0</span></div>
+        <div class="row"><span class="label">Queen HP</span><span class="value" id="v-queenhp">0/0</span></div>
+        <div class="bar-track"><div class="bar-fill" id="bar-queenhp" style="background:var(--good)"></div></div>
+
+        <div class="row"><span class="label">Hunger <span id="famine-badge" class="badge" style="display:none">FAMINE</span></span><span class="value" id="v-hunger">0%</span></div>
+        <div class="bar-track"><div class="bar-fill" id="bar-hunger" style="background:var(--food)"></div></div>
+
+        <div class="row"><span class="label">Stress</span><span class="value" id="v-stress">0%</span></div>
+        <div class="bar-track"><div class="bar-fill" id="bar-stress" style="background:var(--enemy)"></div></div>
+
+        <div class="row"><span class="label">Territory pressure</span><span class="value" id="v-pressure">0%</span></div>
+        <div class="bar-track"><div class="bar-fill" id="bar-pressure" style="background:var(--claimed)"></div></div>
+      </div>
+
+      <div class="panel">
+        <h2>Chapter</h2>
+        <div id="chapter-banner">—</div>
+      </div>
+
+      <div class="panel">
+        <h2>Chronicle</h2>
+        <ul id="chronicle"></ul>
+      </div>
+
+      <div class="panel">
+        <h2>Lifetime</h2>
+        <div class="row"><span class="label">Food gathered</span><span class="value" id="m-deposits">0</span></div>
+        <div class="row"><span class="label">Enemies killed</span><span class="value" id="m-kills">0</span></div>
+        <div class="row"><span class="label">Ants lost</span><span class="value" id="m-lost">0</span></div>
+        <div class="row"><span class="label">Ants born</span><span class="value" id="m-born">0</span></div>
+        <div class="row"><span class="label">Raids survived</span><span class="value" id="m-raids">0</span></div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="game-over-overlay">
+    <h2>Queen Eliminated</h2>
+    <div id="game-over-sub" style="color: var(--ink-secondary); font-size: 13px;"></div>
+    <button id="game-over-restart">Start a new colony</button>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
