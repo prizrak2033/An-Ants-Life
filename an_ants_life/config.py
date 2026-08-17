@@ -229,8 +229,16 @@ class SimConfig:
     # soldier target scales toward the threat value as border pressure
     # rises, so a colony under attack raises defenders.
     GROWTH_TARGET_SCOUT_FRAC: float = 0.08
-    GROWTH_TARGET_SOLDIER_FRAC: float = 0.18
-    GROWTH_THREAT_SOLDIER_FRAC: float = 0.32
+    # Raised from 0.18 after measuring the caste mix directly: holding a
+    # fixed 18% survived 6 of 12 runs while 28% survived 12 of 12 *and*
+    # gathered more food (857 deposits against 752), because a colony
+    # that keeps its guard keeps its workers. Every colony death is the
+    # queen killed with an empty nest, so under-defending was not a
+    # trade-off at all - it was simply losing. The old default sat at the
+    # dangerous end of that curve, which made the starting position a
+    # trap rather than a choice.
+    GROWTH_TARGET_SOLDIER_FRAC: float = 0.26
+    GROWTH_THREAT_SOLDIER_FRAC: float = 0.36
 
     # Queen/Colony health (2)
     QUEEN_HP_MAX: int = 40
