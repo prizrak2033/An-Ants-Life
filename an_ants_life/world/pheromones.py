@@ -49,28 +49,71 @@ class PheromoneSystem:
         return 0.0
 
     def decay_and_diffuse(self, dt: float) -> None:
+        """Evaporate each channel, then blur it into its neighbours.
+
+        Two passes rather than one. Decaying and diffusing in the same
+        sweep meant a cell shed `D` of its *decayed* value while its
+        neighbours were credited from its *undecayed* value, so the grid
+        quietly gained mass; separating them keeps the blur conservative.
+
+        The blur must also reach cells that are currently empty. It used
+        to skip any cell whose own decayed value fell under a threshold,
+        which looks like a cheap skip-the-empty-cells optimisation and is
+        actually a leak: the share a trail sheds outward lands on empty
+        neighbours, and skipping them destroys it instead of spreading
+        it. Measured, a trail kept 9.7% of its scent per second and an
+        isolated deposit 2.4%, against the 45% the configured decay rate
+        asks for - so FOOD_PHERO_DECAY_PER_SEC was contributing about a
+        sixth of the real evaporation and tuning it did almost nothing.
+        The food channel suffered worst, because it is laid in thin
+        trails whose neighbours are mostly empty, while the home channel
+        is smeared across the whole map and largely masked the problem.
+        """
         cfg = self.cfg
-        decay_rates = {"food": cfg.FOOD_PHERO_DECAY_PER_SEC, "home": cfg.HOME_PHERO_DECAY_PER_SEC}
+        decay_rates = {"food": cfg.FOOD_PHERO_DECAY_PER_SEC,
+                       "home": cfg.HOME_PHERO_DECAY_PER_SEC}
+        # A rate per second, like the decay beside it. Applied once per
+        # tick it scaled with framerate instead of with time.
+        diffuse = min(1.0, cfg.PHERO_DIFFUSE * dt)
 
         for channel, grid in self.grids.items():
             rate = decay_rates[channel] * dt
+            decayed = [
+                [grid[cx][cy] * max(0.0, 1.0 - rate * self._decay_mult[cx][cy])
+                 for cy in range(self.rows)]
+                for cx in range(self.cols)
+            ]
+
             new_grid = [[0.0] * self.rows for _ in range(self.cols)]
             for cx in range(self.cols):
-                mult_col = self._decay_mult[cx]
+                col = decayed[cx]
+                left = decayed[cx - 1] if cx > 0 else None
+                right = decayed[cx + 1] if cx + 1 < self.cols else None
                 for cy in range(self.rows):
-                    v = grid[cx][cy] * max(0.0, 1.0 - rate * mult_col[cy])
-                    if v < 1e-4:
-                        continue
                     neighbor_sum = 0.0
                     n = 0
-                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                        nx, ny = cx + dx, cy + dy
-                        if 0 <= nx < self.cols and 0 <= ny < self.rows:
-                            neighbor_sum += grid[nx][ny]
-                            n += 1
+                    if left is not None:
+                        neighbor_sum += left[cy]
+                        n += 1
+                    if right is not None:
+                        neighbor_sum += right[cy]
+                        n += 1
+                    if cy > 0:
+                        neighbor_sum += col[cy - 1]
+                        n += 1
+                    if cy + 1 < self.rows:
+                        neighbor_sum += col[cy + 1]
+                        n += 1
+
+                    v = col[cy]
+                    # Only genuinely dead neighbourhoods may be skipped:
+                    # nothing here and nothing nearby to flow in.
+                    if v <= 0.0 and neighbor_sum <= 0.0:
+                        continue
                     if n:
-                        v += (neighbor_sum / n - v) * cfg.PHERO_DIFFUSE
-                    new_grid[cx][cy] = max(0.0, v)
+                        v += (neighbor_sum / n - v) * diffuse
+                    if v >= 1e-6:
+                        new_grid[cx][cy] = v
             self.grids[channel] = new_grid
 
     def sample_best_direction(

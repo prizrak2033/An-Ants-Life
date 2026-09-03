@@ -43,25 +43,37 @@ class TerritoryModel:
         cx, cy = self._cell_of(x, y)
         self.grid[cx][cy] = max(-1.0, min(1.0, self.grid[cx][cy] + amount))
 
-    def update(self, state) -> None:
+    def update(self, state, dt: float) -> None:
+        """Advance territory control by dt.
+
+        Everything here is a rate: influence accrues, control decays and
+        bleeds sideways, and the enemy pushes back. All of it used to be
+        applied once per tick with no dt at all, so on a machine running
+        at 20fps rather than 30 the whole territory model - and the
+        pressure signal that enemy spawns and stress read off it - ran a
+        third slow. The constants are per second now and reproduce the
+        old 30fps behaviour exactly.
+        """
         cfg = self.cfg
+        decay = min(1.0, cfg.TERR_DECAY_PER_SEC * dt)
+        diffuse = min(1.0, cfg.TERR_DIFFUSE_PER_SEC * dt)
 
         for ant in state.colony.ants:
             if ant.role == Role.WORKER:
-                infl = cfg.TERR_INFL_WORKER
+                infl = cfg.TERR_INFL_WORKER * dt
             elif ant.role == Role.SCOUT:
-                infl = cfg.TERR_INFL_SCOUT
+                infl = cfg.TERR_INFL_SCOUT * dt
             else:
-                infl = cfg.TERR_INFL_SOLDIER
+                infl = cfg.TERR_INFL_SOLDIER * dt
             self._add(ant.x, ant.y, infl)
 
         for enemy in state.enemies:
-            self._add(enemy.x, enemy.y, -enemy.terr_influence)
+            self._add(enemy.x, enemy.y, -enemy.terr_influence * dt)
 
         new_grid = [[0.0] * self.rows for _ in range(self.cols)]
         for cx in range(self.cols):
             for cy in range(self.rows):
-                v = self.grid[cx][cy] * (1.0 - cfg.TERR_DECAY_PER_TICK)
+                v = self.grid[cx][cy] * (1.0 - decay)
 
                 neighbor_sum = 0.0
                 n = 0
@@ -71,10 +83,11 @@ class TerritoryModel:
                         neighbor_sum += self.grid[nx][ny]
                         n += 1
                 if n:
-                    v += (neighbor_sum / n - v) * cfg.TERR_DIFFUSE
+                    v += (neighbor_sum / n - v) * diffuse
 
-                v -= cfg.TERR_AMBIENT_ENEMY_PUSH
-                v += random.uniform(-cfg.TERR_ENEMY_NOISE, cfg.TERR_ENEMY_NOISE)
+                v -= cfg.TERR_AMBIENT_ENEMY_PUSH_PER_SEC * dt
+                jitter = cfg.TERR_ENEMY_NOISE_PER_SEC * dt
+                v += random.uniform(-jitter, jitter)
                 new_grid[cx][cy] = max(-1.0, min(1.0, v))
         self.grid = new_grid
 

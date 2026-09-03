@@ -99,7 +99,8 @@ def update_enemies(state, dt: float) -> None:
         return
 
     pressure = state.colony.emergency.get("territory_pressure", 0.0)
-    spawn_chance = cfg.ENEMY_BASE_SPAWN_CHANCE_PER_TICK * (1.0 + pressure * cfg.ENEMY_SPAWN_PRESSURE_MULT)
+    spawn_chance = (cfg.ENEMY_BASE_SPAWN_CHANCE_PER_SEC * dt
+                    * (1.0 + pressure * cfg.ENEMY_SPAWN_PRESSURE_MULT))
 
     if len(state.enemies) < cfg.ENEMY_MAX_ALIVE and random.random() < spawn_chance:
         point = _spawn_point(state, cfg)

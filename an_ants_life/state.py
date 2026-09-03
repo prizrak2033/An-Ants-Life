@@ -84,7 +84,7 @@ class GameState:
         self.tick += 1
 
         update_enemies(self, dt)
-        self.territory.update(self)
+        self.territory.update(self, dt)
         # Directives lay their scent before pheromones decay, so a mark's
         # contribution is subject to the same evaporation as a real trail.
         update_directives(self, dt)

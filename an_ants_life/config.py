@@ -81,7 +81,10 @@ class SimConfig:
 
     # Pheromones
     PHERO_GRID: int = 4
-    PHERO_DIFFUSE: float = 0.10
+    # How fast scent spreads to neighbouring cells, per second. It was
+    # applied once per tick and so scaled with framerate; 0.10 a tick at
+    # 30fps is the 3.0 a second kept here.
+    PHERO_DIFFUSE: float = 3.0
     FOOD_PHERO_DECAY_PER_SEC: float = 0.55
     HOME_PHERO_DECAY_PER_SEC: float = 0.45
     FOOD_PHERO_DEPOSIT_AMOUNT: float = 1.35
@@ -110,15 +113,20 @@ class SimConfig:
 
     # Territory
     TERR_CELL: int = 6
-    TERR_DECAY_PER_TICK: float = 0.015
-    TERR_DIFFUSE: float = 0.06
+    # All per second. These were per tick, and TerritoryModel.update()
+    # took no dt at all, so the entire territory model - and the pressure
+    # signal that enemy spawns and stress read from it - ran a third slow
+    # whenever the frame rate dipped toward MAX_DT. Each value is its old
+    # per-tick figure times the 30fps target, so 30fps play is unchanged.
+    TERR_DECAY_PER_SEC: float = 0.45
+    TERR_DIFFUSE_PER_SEC: float = 1.8
 
-    TERR_INFL_WORKER: float = 0.10
-    TERR_INFL_SCOUT: float = 0.20
-    TERR_INFL_SOLDIER: float = 0.16
+    TERR_INFL_WORKER: float = 3.0
+    TERR_INFL_SCOUT: float = 6.0
+    TERR_INFL_SOLDIER: float = 4.8
 
-    TERR_AMBIENT_ENEMY_PUSH: float = 0.0004
-    TERR_ENEMY_NOISE: float = 0.010
+    TERR_AMBIENT_ENEMY_PUSH_PER_SEC: float = 0.012
+    TERR_ENEMY_NOISE_PER_SEC: float = 0.30
 
     TERR_BORDER_INCIDENT_PRESSURE: float = 0.72
     TERR_EXPANSION_CONTROL: float = 0.58
@@ -130,7 +138,14 @@ class SimConfig:
 
     # Enemies (shared)
     ENEMY_ENABLE: bool = True
-    ENEMY_BASE_SPAWN_CHANCE_PER_TICK: float = 0.0045
+    # Per second, not per tick. Food respawn was converted to a time rate
+    # so the economy would not shift with framerate; enemy pressure - the
+    # other half of the same balance - was left per tick, and Timekeeper
+    # hands out a real variable dt clamped at MAX_DT. A loaded machine
+    # dropping to 20fps therefore lost a third of its enemy spawns while
+    # food regen held steady, so the played game was quietly easier than
+    # the benchmarked one. 0.0045 a tick at 30fps is the 0.135 kept here.
+    ENEMY_BASE_SPAWN_CHANCE_PER_SEC: float = 0.135
     # Left at 1.0 deliberately. Scaling spawns harder with lost territory
     # was tested at 1.3 and 1.6 and made outcomes *less* responsive to
     # play, not more: a colony already losing ground gets buried faster,
@@ -160,7 +175,7 @@ class SimConfig:
     WARRIOR_HP: int = 3
     WARRIOR_SPEED: float = 28.0
     WARRIOR_ATK: int = 1
-    WARRIOR_TERR_INFLUENCE: float = 0.16
+    WARRIOR_TERR_INFLUENCE: float = 4.8   # per second
 
     # Raider: fast and fragile. Ignores the queen, robs a food source and
     # runs for the edge; food that leaves the map is gone for good, so
@@ -172,7 +187,7 @@ class SimConfig:
     RAIDER_HP: int = 5
     RAIDER_SPEED: float = 34.0
     RAIDER_ATK: int = 1
-    RAIDER_TERR_INFLUENCE: float = 0.10
+    RAIDER_TERR_INFLUENCE: float = 3.0    # per second
     RAIDER_STEAL_AMOUNT: float = 8.0
     RAIDER_STEAL_RADIUS: float = 3.0
     # Looting holds the raider still beside the pile, and the load slows
@@ -192,7 +207,7 @@ class SimConfig:
     # instead of beelining past them like a warrior, that alone drove
     # colonies from a ~20-40 population down to single digits.
     PREDATOR_ATK: int = 1
-    PREDATOR_TERR_INFLUENCE: float = 0.20
+    PREDATOR_TERR_INFLUENCE: float = 6.0  # per second
     PREDATOR_HUNT_RADIUS: float = 24.0
 
     # Combat (1)
