@@ -247,19 +247,35 @@ class SimConfig:
     # Economy
     #
     # World food regeneration is the colony's real budget, and it sets the
-    # equilibrium population: roughly
-    #   (FOOD_PER_SOURCE / FOOD_SOURCE_RESPAWN_SECONDS) / FOOD_UPKEEP_PER_ANT_PER_SEC
-    # Note the naive figure overstates it: measured over long runs, combat
-    # attrition spends ~2/3 of the food budget on replacement births (at
-    # GROWTH_EGG_FOOD_COST each), so the realised equilibrium is roughly a
-    # third of that. At these values the world carries ~20-40 ants. Retune
-    # the respawn interval, not the ants, to change how big a colony the
-    # world can support.
+    # equilibrium population. Replacement births are paid out of the same
+    # budget as upkeep, so the standing population the world can hold is
+    #
+    #   P = (regen - GROWTH_EGG_FOOD_COST * loss_rate) / FOOD_UPKEEP_PER_ANT_PER_SEC
+    #   where regen = FOOD_PER_SOURCE / FOOD_SOURCE_RESPAWN_SECONDS
+    #
+    # That formula predicts measured outcomes closely: at a 38s respawn it
+    # gives 13.5 against an observed 15, at 30s it gives 28 against 27, and
+    # at 24s it gives 44 against 43. Use it rather than guessing.
+    #
+    # The share going to replacement is the thing to understand here. At a
+    # measured 0.098 ants lost per second, replacement alone costs 0.59
+    # food/s - about three quarters of everything the world produces at a
+    # 38s respawn, leaving a quarter to actually feed anybody. That is why
+    # a 38s world peaked near 52 ants and then hollowed out to 15, killing
+    # a third of runs by the fifteen-minute mark: the boom was funded by
+    # the one-time starting endowment (180 in sources plus 40 stored) and
+    # the world could never refinance it.
+    #
+    # 30s buys a colony that booms to ~56 and settles near 27 with no
+    # famine and every run surviving - an arc with a real carrying
+    # capacity in it. Going further (24s holds ~43) removes the pressure
+    # rather than balancing it. Retune this interval, not the ants, to
+    # change how big a colony the world supports.
     FOOD_UPKEEP_PER_ANT_PER_SEC: float = 0.015
     FOOD_RESERVE_BUFFER_SEC: float = 60.0
     FOOD_SOURCE_MIN_DIST_FROM_NEST: float = 20.0
     FOOD_SOURCE_EDGE_MARGIN: float = 10.0
-    FOOD_SOURCE_RESPAWN_SECONDS: float = 38.0
+    FOOD_SOURCE_RESPAWN_SECONDS: float = 30.0
 
     # Growth
     GROWTH_ENABLE: bool = True
