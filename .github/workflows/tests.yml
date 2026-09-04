@@ -1,0 +1,43 @@
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  # The slow balance tier is opt-in; this is how it gets run on demand.
+  workflow_dispatch:
+
+jobs:
+  fast:
+    name: fast tier
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # No install step: the simulation and its suite are standard
+      # library only. The audio tests need playwright and a Chromium
+      # build and skip themselves when neither is present, which is the
+      # case here - they run locally, where there is a browser.
+      - name: Run the fast tier
+        working-directory: an_ants_life
+        run: python3 -m unittest discover -s tests -t . -v
+
+  baseline:
+    name: full balance baseline
+    runs-on: ubuntu-latest
+    # The slow tier runs twelve 300s and twelve 900s colonies and takes
+    # minutes, so it is kept off the per-push path and run on demand or
+    # on the default branch, where a balance regression actually matters.
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run the slow tier
+        working-directory: an_ants_life
+        env:
+          ANTS_SLOW: "1"
+        run: python3 -m unittest discover -s tests -t . -v
