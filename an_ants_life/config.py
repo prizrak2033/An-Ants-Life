@@ -30,6 +30,38 @@ class SimConfig:
 
     ANT_SPEED: float = 40.0
     ANT_SENSE_RADIUS: float = 18.0
+
+    # Workers and scouts break off and run when a threat gets this close.
+    # They had no awareness of enemies at all, which made them 62% of all
+    # casualties over long runs - and they cannot win those fights: a
+    # worker has 4 HP and 1 attack against a 5 HP raider or an 8 HP
+    # predator, so it loses every time. Losing foragers is what the
+    # colony can least afford, since replacing each one costs a full egg
+    # out of the same food budget that feeds everybody.
+    #
+    # Fleeing works because every enemy is slower than an ant (40 against
+    # 34, 28 and 22), so this is an escape rather than a delay. Set
+    # between COMBAT_ENGAGE_RADIUS, so they break off before contact, and
+    # the soldiers' COMBAT_SCAN_RADIUS, so a fleeing worker draws its
+    # escort in rather than running past it.
+    # Inside this distance from the nest they stand and fight instead.
+    # That exception is not a detail, it is the whole mechanic. Fleeing
+    # everywhere was measured and it worked exactly as designed on its
+    # own terms - casualties fell 46%, births finally overtook losses,
+    # and the standing population went from 27 to 43 - while survival
+    # collapsed from 6/6 to 4/6, and to 2/6 at wider radii.
+    #
+    # The reason is that a worker's hopeless chip damage was holding the
+    # nest up. A warrior has 3 HP and a worker does 1, so three of them
+    # kill one before it reaches the queen; they were dying, but they
+    # were dying in front of her. Take that away and warriors walk in.
+    # So foragers run in the field, where predators and raiders hunt them
+    # for nothing, and hold their ground at home, where dying buys
+    # something.
+    ANT_FLEE_ENABLE: bool = True
+    ANT_FLEE_RADIUS: float = 9.0
+    ANT_FLEE_STEP: float = 16.0
+    ANT_FLEE_HOME_RADIUS: float = 22.0
     # Soldiers break off to run down a raider that is actually carrying
     # loot, well beyond their normal nest patrol. Laden raiders are slower
     # than an ant, so this is a chase the colony can win - and it is the

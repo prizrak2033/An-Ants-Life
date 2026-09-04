@@ -85,6 +85,53 @@ def _closest_laden_raider(state: 'GameState', x: float, y: float, radius: float)
     return best
 
 
+def _flee_point(state: 'GameState', ant: 'Ant', cfg) -> Optional[Tuple[float, float]]:
+    """Somewhere directly away from the nearest threat, if one is close.
+
+    For workers and scouts only. They are not fighters - a worker has 4
+    HP and 1 attack, so it loses to a 5 HP raider and an 8 HP predator
+    every time - and they were the colony's largest single source of
+    casualties precisely because nothing told them to leave.
+    """
+    if not cfg.ANT_FLEE_ENABLE:
+        return None
+    # At home they stand. A forager's chip damage is worthless against a
+    # predator in open ground, but in front of the queen it is the
+    # difference between a warrior being stopped and not.
+    nest_x, nest_y = state.nest_pos
+    if math.hypot(ant.x - nest_x, ant.y - nest_y) <= cfg.ANT_FLEE_HOME_RADIUS:
+        return None
+    threat, _ = _closest_enemy(state, ant.x, ant.y, cfg.ANT_FLEE_RADIUS)
+    if threat is None:
+        return None
+    dx, dy = ant.x - threat.x, ant.y - threat.y
+    d = math.hypot(dx, dy)
+    if d < 1e-6:
+        # Standing on it: any direction beats staying put. Derived from
+        # the id rather than drawn at random, so a reloaded save replays.
+        dx, dy, d = math.cos(ant.id), math.sin(ant.id), 1.0
+    nx, ny = dx / d, dy / d
+    step = cfg.ANT_FLEE_STEP
+
+    def _reachable(ux, uy):
+        """Where the ant would actually get to, after the world bounds."""
+        return (min(max(0.0, ant.x + ux * step), cfg.WORLD_W),
+                min(max(0.0, ant.y + uy * step), cfg.WORLD_H))
+
+    best = _reachable(nx, ny)
+    # Running straight away from something that has you against an edge
+    # clamps to where you already are, which reads as standing still and
+    # dying. Slide along the boundary instead: a cornered ant should try
+    # to get past the threat, not freeze in front of it.
+    if math.hypot(best[0] - ant.x, best[1] - ant.y) < step * 0.5:
+        for ux, uy in ((-ny, nx), (ny, -nx)):
+            side = _reachable(ux, uy)
+            if math.hypot(side[0] - ant.x, side[1] - ant.y) > \
+               math.hypot(best[0] - ant.x, best[1] - ant.y):
+                best = side
+    return best
+
+
 def choose_intent(state: 'GameState', ant: 'Ant', dt: float = 1.0 / 30.0) -> Intent:
     """Choose the next action for an ant based on its role and current state."""
     cfg = state.cfg
@@ -136,6 +183,17 @@ def choose_intent(state: 'GameState', ant: 'Ant', dt: float = 1.0 / 30.0) -> Int
                                                  cfg.DIRECTIVE_DEFEND_PATROL_RADIUS),
                               deposit_channel="home")
         return Intent(target=_rand_point(cfg, nest[0], nest[1], 18.0), deposit_channel="home")
+
+    # Everything below is a worker or a scout - every soldier path above
+    # returns - and neither of them fights. Running comes before the
+    # errand, whatever the errand is: a laden worker that presses on
+    # through a predator loses both itself and the food it was carrying.
+    # It keeps laying its own channel while it runs, so a trail is not
+    # forgotten just because it was interrupted.
+    flee = _flee_point(state, ant, cfg)
+    if flee is not None:
+        return Intent(target=flee,
+                      deposit_channel="food" if ant.carrying > 0 else "home")
 
     # Workers: forage when empty, return home when carrying.
     #

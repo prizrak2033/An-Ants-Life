@@ -16,6 +16,7 @@ from tests.harness import DT, SLOW, aggregate, report, run
 from config import SimConfig
 from state import GameState
 from ants.roles import Role
+from ants.ai import choose_intent
 
 
 class TestForaging(unittest.TestCase):
@@ -273,3 +274,116 @@ class TestFramerateIndependence(unittest.TestCase):
         spread = (max(totals) - min(totals)) / max(totals)
         self.assertLess(spread, 0.10,
                         f"territory control varies with framerate: {totals}")
+
+
+class TestNonCombatantsFlee(unittest.TestCase):
+    """Workers and scouts run; soldiers and praetorians do not.
+
+    Foragers had no awareness of enemies at all and were 62% of all
+    casualties over long runs, in fights they cannot win - 4 HP and 1
+    attack against a 5 HP raider or an 8 HP predator. Losing them is what
+    the colony can least afford, because each replacement is an egg out
+    of the same budget that feeds everybody.
+    """
+
+    def _state_with_threat(self, role, dist=3.0, **over):
+        from enemies.enemy import make_enemy
+        from enemies.kinds import EnemyKind
+        from ants.ant import Ant
+        random.seed(1)
+        cfg = SimConfig(ENEMY_ENABLE=False, **over)
+        st = GameState(cfg)
+        ant = Ant(1, role, cfg.NEST_X + 25.0, cfg.NEST_Y, hp=cfg.ANT_HP_MAX)
+        st.colony.ants = [ant]
+        enemy = make_enemy(cfg, 1, EnemyKind.PREDATOR, ant.x + dist, ant.y)
+        st.enemies = [enemy]
+        return st, ant, enemy
+
+    @staticmethod
+    def _closes_on(intent, ant, enemy):
+        """Does the chosen target take the ant toward the threat?"""
+        now = math.hypot(ant.x - enemy.x, ant.y - enemy.y)
+        tx, ty = intent.target
+        return math.hypot(tx - enemy.x, ty - enemy.y) < now
+
+    def test_worker_runs_from_a_predator(self):
+        st, ant, enemy = self._state_with_threat(Role.WORKER)
+        intent = choose_intent(st, ant)
+        self.assertFalse(self._closes_on(intent, ant, enemy),
+                         "worker walked toward the predator")
+
+    def test_laden_worker_runs_rather_than_pressing_home(self):
+        """The errand does not outrank survival: a laden worker that
+        presses on loses itself and the food together."""
+        st, ant, enemy = self._state_with_threat(Role.WORKER)
+        ant.carrying = 1.0
+        intent = choose_intent(st, ant)
+        self.assertFalse(self._closes_on(intent, ant, enemy))
+        self.assertEqual(intent.deposit_channel, "food",
+                         "a fleeing laden ant should still mark its route")
+
+    def test_scout_runs_too(self):
+        st, ant, enemy = self._state_with_threat(Role.SCOUT)
+        intent = choose_intent(st, ant)
+        self.assertFalse(self._closes_on(intent, ant, enemy))
+
+    def test_soldiers_still_engage(self):
+        st, ant, enemy = self._state_with_threat(Role.SOLDIER)
+        intent = choose_intent(st, ant)
+        self.assertTrue(self._closes_on(intent, ant, enemy),
+                        "soldier fled instead of engaging")
+
+    def test_praetorian_still_engages_in_the_chamber(self):
+        st, ant, enemy = self._state_with_threat(Role.PRAETORIAN)
+        # Praetorians are leashed, so stage this inside the chamber.
+        ant.x, ant.y = st.cfg.NEST_X + 2.0, st.cfg.NEST_Y
+        enemy.x, enemy.y = ant.x + 3.0, ant.y
+        intent = choose_intent(st, ant)
+        self.assertTrue(self._closes_on(intent, ant, enemy),
+                        "praetorian fled instead of holding the queen")
+
+    def test_far_threats_are_ignored(self):
+        st, ant, enemy = self._state_with_threat(Role.WORKER, dist=40.0)
+        intent = choose_intent(st, ant)
+        self.assertIsNotNone(intent.target)
+        # Nothing nearby to run from, so it should be doing its job.
+        self.assertGreater(math.hypot(intent.target[0] - enemy.x,
+                                      intent.target[1] - enemy.y), 1.0)
+
+    def test_a_cornered_ant_slides_instead_of_freezing(self):
+        """Running straight away from a threat that has you against an
+        edge clamps to where you already are. That reads as standing
+        still and dying, so a cornered ant goes sideways instead."""
+        st, ant, enemy = self._state_with_threat(Role.WORKER)
+        ant.x, ant.y = 0.5, st.cfg.WORLD_H / 2      # hard against the left wall
+        enemy.x, enemy.y = ant.x + 3.0, ant.y       # threat inward, escape blocked
+        intent = choose_intent(st, ant)
+        moved = math.hypot(intent.target[0] - ant.x, intent.target[1] - ant.y)
+        self.assertGreater(moved, st.cfg.ANT_FLEE_STEP * 0.5,
+                           "cornered ant froze in front of the threat")
+        self.assertFalse(self._closes_on(intent, ant, enemy))
+
+    def test_foragers_stand_their_ground_at_the_nest(self):
+        """The exception that makes the mechanic work.
+
+        Fleeing everywhere cut casualties 46% and still dropped survival
+        from 6/6 to 4/6, because a worker's hopeless chip damage was
+        holding the nest up: a warrior has 3 HP and a worker does 1, so
+        three of them stop one before it reaches the queen. In the field
+        that damage buys nothing; at home it buys the queen's life.
+        """
+        st, ant, enemy = self._state_with_threat(Role.WORKER)
+        ant.x, ant.y = st.cfg.NEST_X + 4.0, st.cfg.NEST_Y
+        enemy.x, enemy.y = ant.x + 3.0, ant.y
+        from ants.ai import _flee_point
+        self.assertIsNone(_flee_point(st, ant, st.cfg),
+                          "forager fled from the queen's doorstep")
+
+    def test_foragers_run_once_clear_of_the_nest(self):
+        st, ant, enemy = self._state_with_threat(Role.WORKER)
+        ant.x = st.cfg.NEST_X + st.cfg.ANT_FLEE_HOME_RADIUS + 8.0
+        ant.y = st.cfg.NEST_Y
+        enemy.x, enemy.y = ant.x + 3.0, ant.y
+        from ants.ai import _flee_point
+        self.assertIsNotNone(_flee_point(st, ant, st.cfg),
+                             "forager stood and died in open ground")
