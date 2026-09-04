@@ -41,6 +41,11 @@ Chromium is unavailable. `tests/harness.py` is the measurement tool the
 balance work runs on — use it for any tuning change rather than reasoning
 about the config.
 
+CI runs the fast tier on every push and pull request
+(`.github/workflows/tests.yml`). The slow balance tier is opt-in: it runs on
+the default branch, or on demand via workflow dispatch, since twelve 300s and
+twelve 900s colonies take minutes.
+
 All tuning lives in `an_ants_life/config.py` as a single frozen `SimConfig`
 dataclass — world size, ant speeds, combat, enemy pressure, growth targets,
 directive limits, the audio mix. Changing the game is editing that file.
@@ -61,8 +66,10 @@ independently verified** · **○ not built**
 - ✅ Worker / scout / soldier / praetorian castes with distinct AI.
 - ✅ Framerate-independent rates — food respawn, enemy spawns, pheromone
   diffusion and the whole territory model are per second, so they hold across
-  a 15–120fps range rather than drifting with tick count. Twelve tick-based
-  *durations* still remain; see Known gaps.
+  a 15–120fps range rather than drifting with tick count. The tick-based
+  *durations* were converted too, including the stamps carried on ants,
+  enemies, the history index and the save format. `HUD_EVERY_TICKS` and
+  `DEBUG_EVERY_TICKS` stay in ticks on purpose: they are a render cadence.
 
 ### Colony and growth
 - ✅ Queen-driven births as the only source of replenishment.
@@ -83,7 +90,8 @@ independently verified** · **○ not built**
 - ✅ Three enemy types with genuinely different behaviour, not just different
   stats: warriors engage, raiders steal and flee, predators hunt.
 - ✅ Raid loot recovery — soldiers break off to chase laden raiders. This went
-  from 0% recovered to 66% intercepted.
+  from 0% recovered to around 60% intercepted, varying with whether foragers
+  flee (they chip at raiders too, so fleeing costs a few points of it).
 - ✅ Enemy pressure curve tuned against the current baseline.
 
 ### Player agency
@@ -99,6 +107,10 @@ independently verified** · **○ not built**
   playstyle) rather than a flat stat bonus — it is neutral when playing at
   home, which is the point.
 - ✅ Recall / rally, standing orders, policy sliders.
+- ◐ Foragers run from threats in the field and stand their ground near the
+  nest. 62% of all casualties were workers and scouts losing fights they
+  cannot win, but their chip damage was also holding the nest up — see
+  Known gaps, this one is not settled.
 - ◐ Layer toggles and presets for the map overlays.
 
 ### Narrative
@@ -106,7 +118,7 @@ independently verified** · **○ not built**
 - ✅ Bounded history ring with O(1) recency lookup — was O(n) over an
   unbounded log, called several times per tick.
 - ◐ Declarative scored chapters with hysteresis to stop churn (17 chapters in
-  600s before `CHAPTER_MIN_TICKS`, some lasting 0–3s).
+  600s before `CHAPTER_MIN_SECONDS`, some lasting 0–3s).
 - ◐ Prose narration, milestones, endings, and a persistent saga.
 
 ### Persistence
@@ -130,61 +142,87 @@ independently verified** · **○ not built**
 
 ## Current baseline
 
-Measured on the current build, 12 seeds, headless with fixed `dt`
+Measured on the shipped configuration, 12 seeds, headless with fixed `dt`
 (`ANTS_SLOW=1 python3 -m unittest discover -s tests -t .`):
 
 | | 300s | 900s |
 |---|---|---|
 | survived | 12/12 | 10/12 |
-| deposits/sec | 1.501 | 1.089 |
-| food ratio (deposits ÷ upkeep) | 2.10× | 1.94× |
-| time in famine | 0.0% | 0.0% |
-| raid loot intercepted | 66% | 64% |
-| median end population | 45 | 22 |
+| deposits/sec | 1.719 | 1.243 |
+| food ratio (deposits / upkeep) | 2.17x | 1.65x |
+| time in famine | 0.0% | 0.9% |
+| raid loot intercepted | 50% | 59% |
+| median peak -> end population | 58 -> 54 | 60 -> 42 |
+| births / losses | 386 / 119 | 760 / 644 |
 
-**The economy is the thing that sets colony size, and it is arithmetic.**
+### Read these numbers with the right confidence
+
+**Twelve seeds cannot separate differences of a few runs, and the medians
+move more than they look like they should.** The same configuration, on the
+same twelve seeds, measured a median end population of 22 in one run and 34
+in another. Nothing between those two runs should have changed 30fps
+behaviour - the tick-to-seconds conversions were built to be neutral - but
+they are not *bit*-identical (`0.3333` is not `10/30`, and the chapter
+sampler moved from `tick % 30` to elapsed time). A one-tick difference early
+in a 27,000-tick run is enough for a chaotic system to finish somewhere
+completely different.
+
+So read a survival count of 10/12 against 11/12 as a tie, and a median
+population of 34 against 42 as suggestive rather than settled. What is
+trustworthy is what reproduced across separate runs: the carrying-capacity
+formula below did, and so did the direction of the births-versus-losses
+balance. `tests/harness.py` reports medians with no dispersion, which is what
+made these differences look firmer than they were - adding a spread or a
+survival interval is worth doing before the next tuning decision leans on it.
+
+### The economy sets colony size, and it is arithmetic
+
 Replacement births come out of the same budget as upkeep, so the standing
 population the world can hold is
 
 ```
-P = (regen − GROWTH_EGG_FOOD_COST × loss_rate) / FOOD_UPKEEP_PER_ANT_PER_SEC
+P = (regen - GROWTH_EGG_FOOD_COST * loss_rate) / FOOD_UPKEEP_PER_ANT_PER_SEC
     where regen = FOOD_PER_SOURCE / FOOD_SOURCE_RESPAWN_SECONDS
 ```
 
-That formula tracks measured outcomes closely — a 38s respawn predicts 13.5
-against an observed 15, 30s predicts 28 against 27, 24s predicts 44 against
-43 — so use it rather than guessing when changing how big a colony the world
-supports. Retune the respawn interval, not the ants.
+This is the one relationship that has reproduced across separate runs: a 38s
+respawn predicts 13.5 against an observed 15, 30s predicts 28 against 27, and
+24s predicts 44 against 43. Use it rather than guessing, and retune the
+respawn interval rather than the ants.
 
-**Long-run decay is improved, not solved.** At 900s the colony now survives
-10 runs in 12 (was 8) and ends at a median of 22 ants (was 11), with famine
-gone entirely. But it still peaks near 56 and falls to 22, and losses still
-outrun births 1078 to 934. The remaining gap is not food supply: it is that
-combat casualties consume a large share of the food budget as replacement
-births. Closing it means spending less on casualties, not printing more food.
+### Long-run decay: improved, not closed
+
+The colony no longer hollows out - famine is under 1% and the population
+floor has risen - but it still peaks near 60 and settles in the low 40s, and
+two runs in twelve die at 900s. Births and losses are now close to balanced
+(760 against 644) where they previously ran at a deficit.
 
 ## Known gaps
 
-1. **Attrition still outruns births over long runs.** Losses exceed births
-   1078 to 934 across twelve 900s runs, so population slides from 56 to 22
-   and two colonies still die. Food is not the constraint — famine is 0% and
-   the ratio holds near 1.9×. The levers are casualty rate and
-   `GROWTH_EGG_FOOD_COST`, not regen.
-2. **Twelve tick-based durations remain.** Combat cooldown, birth spacing,
-   chapter windows and the emergency-raid timers are all counted in ticks, so
-   they stretch when the frame rate dips toward `MAX_DT` while the rate-based
-   systems beside them hold steady. The rates have been converted; these
-   durations are a larger retune.
-3. **Sound has never been heard.** Every level was tuned by offline
+1. **The forager flee mechanic is unresolved and ships enabled.** Workers and
+   scouts run from threats in the field and hold their ground near the nest
+   (`ANT_FLEE_ENABLE`, `ANT_FLEE_RADIUS`, `ANT_FLEE_HOME_RADIUS`). It flips
+   births ahead of losses and raises the population floor, but it costs food
+   ratio (1.99x -> 1.65x) and raid interception (64% -> 59%), and it did **not**
+   improve survival: 10/12 against a control of 11/12, which is a tie at this
+   sample size. Deciding it properly needs 32+ seeds per arm. Until then it is
+   one flag away from off.
+2. **Attrition is still the binding constraint over long runs.** Food is not:
+   famine is under 1% and the ratio holds above 1.6x. The levers are the
+   casualty rate and `GROWTH_EGG_FOOD_COST`, not regen.
+3. **The harness reports medians with no dispersion**, which is how the noise
+   described under the baseline went unnoticed. Worth fixing before the next
+   tuning decision rests on it.
+4. **Sound has never been heard.** Every level was tuned by offline
    measurement in a container with no audio device.
-4. **Visual readability is unconfirmed.** Overlays once hid the ants entirely;
+5. **Visual readability is unconfirmed.** Overlays once hid the ants entirely;
    toggles, presets and larger outlined ants were added in response, but the
    result has not been confirmed by eye.
-5. **No CI.** The suite exists and passes but nothing runs it automatically.
 
 ## Where things live
 
 ```
+.github/workflows/  CI: fast tier per push, balance tier on demand
 an_ants_life/
   config.py         all tuning, one frozen dataclass
   state.py          GameState; owns the world and steps it
