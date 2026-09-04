@@ -83,10 +83,11 @@ def update_combat(state, dt: float) -> None:
         return
 
     tick = state.tick
+    now = state.t
     engage_sq = cfg.COMBAT_ENGAGE_RADIUS * cfg.COMBAT_ENGAGE_RADIUS
 
     for ant in state.colony.ants:
-        if ant.hp <= 0 or (tick - ant.last_combat_tick) < cfg.COMBAT_TICK_COOLDOWN:
+        if ant.hp <= 0 or (now - ant.last_combat_t) < cfg.COMBAT_COOLDOWN_SECONDS:
             continue
         for enemy in state.enemies:
             if enemy.hp <= 0:
@@ -95,8 +96,8 @@ def update_combat(state, dt: float) -> None:
             if dx * dx + dy * dy > engage_sq:
                 continue
 
-            ant.last_combat_tick = tick
-            enemy.last_combat_tick = tick
+            ant.last_combat_t = now
+            enemy.last_combat_t = now
             enemy.hp -= _atk_for_role(cfg, ant.role)
             ant.hp -= enemy.atk
 
@@ -141,8 +142,8 @@ def update_combat(state, dt: float) -> None:
         if enemy.kind != EnemyKind.WARRIOR:
             continue
         d = math.hypot(enemy.x - nest_x, enemy.y - nest_y)
-        if d <= cfg.QUEEN_THREAT_RADIUS and (tick - enemy.last_combat_tick) >= cfg.COMBAT_TICK_COOLDOWN:
-            enemy.last_combat_tick = tick
+        if d <= cfg.QUEEN_THREAT_RADIUS and (now - enemy.last_combat_t) >= cfg.COMBAT_COOLDOWN_SECONDS:
+            enemy.last_combat_t = now
             state.colony.queen.hp -= cfg.QUEEN_DAMAGE_PER_HIT
             state.history.emit(
                 state.t, tick, EventKind.QUEEN_HIT,

@@ -118,9 +118,8 @@ class ChapterState:
     active: bool = False
     title: str = "—"
     score: float = 0.0
-    started_tick: int = -1
     started_t: float = 0.0
-    last_signal_tick: int = -1
+    last_signal_t: float = -1.0
 
 
 @dataclass
@@ -141,8 +140,9 @@ class MilestoneTracker:
         self.past_chapters: List[ChapterRecord] = []
         self.milestones: List[Dict] = []
         self._earned: set = set()
-        self._last_chapter_change_tick = -10_000
-        self._last_predator_tick = -10**9
+        self._last_chapter_change_t = -1e18
+        self._last_predator_t = -1e18
+        self._last_sample_t = -1e18
         # Sampled once a second; cheap, and enough to see a trend.
         self._pop_samples: Deque[Tuple[int, int]] = deque(maxlen=180)
         self._pressure_samples: Deque[float] = deque(maxlen=180)
@@ -154,25 +154,28 @@ class MilestoneTracker:
         # Read predator presence off the live roster rather than rescanning
         # the event log for spawn records every tick.
         if any(e.kind is EnemyKind.PREDATOR for e in state.enemies):
-            self._last_predator_tick = state.tick
+            self._last_predator_t = state.t
 
-        if state.tick % 30:
+        # Once a simulated second, not every 30 ticks - the same thing
+        # at 30fps, and a different thing at any other frame rate.
+        if state.t - self._last_sample_t < 1.0:
             return
-        self._pop_samples.append((state.tick, len(state.colony.ants)))
+        self._last_sample_t = state.t
+        self._pop_samples.append((state.t, len(state.colony.ants)))
         self._pressure_samples.append(
             state.colony.emergency.get("territory_pressure", 0.0))
 
     def _gather(self, state) -> Signals:
         cfg = self.cfg
         colony = state.colony
-        window = max(0, state.tick - cfg.CHAPTER_WINDOW_TICKS)
+        window = max(0.0, state.t - cfg.CHAPTER_WINDOW_SECONDS)
         hist = state.history
 
         pop = len(colony.ants)
         trend = 0.0
         if self._pop_samples:
-            oldest_tick, oldest_pop = self._pop_samples[0]
-            if oldest_pop > 0 and (state.tick - oldest_tick) > 0:
+            oldest_t, oldest_pop = self._pop_samples[0]
+            if oldest_pop > 0 and (state.t - oldest_t) > 0:
                 trend = (pop - oldest_pop) / oldest_pop
 
         high = 0.0
@@ -197,7 +200,7 @@ class MilestoneTracker:
             theft=hist.any_since(window, [EventKind.ENEMY_ESCAPE, EventKind.ENEMY_STEAL]),
             recovered=hist.any_since(window, [EventKind.ENEMY_LOOT_RECOVERED]),
             queen_hit=hist.any_since(window, [EventKind.QUEEN_HIT]),
-            predator=(state.tick - self._last_predator_tick) <= cfg.CHAPTER_WINDOW_TICKS,
+            predator=(state.t - self._last_predator_t) <= cfg.CHAPTER_WINDOW_SECONDS,
             expansion=hist.any_since(window, [EventKind.TERR_EXPANSION]),
         )
 
@@ -220,20 +223,20 @@ class MilestoneTracker:
             if s > best_score:
                 best_title, best_score = d.title, s
 
-        cooling = (state.tick - self._last_chapter_change_tick) < cfg.CHAPTER_COOLDOWN_TICKS
+        cooling = (state.t - self._last_chapter_change_t) < cfg.CHAPTER_COOLDOWN_SECONDS
         if best_title is not None:
             if not self.chapter.active:
                 if not cooling:
                     self._open(state, best_title, sig, best_score)
             elif best_title == self.chapter.title:
-                self.chapter.last_signal_tick = state.tick
+                self.chapter.last_signal_t = state.t
                 self.chapter.score = best_score
             else:
                 # A better-fitting chapter can take over, but only once the
                 # current one has actually had a run and only if it fits
                 # clearly better - otherwise the saga becomes a list of
                 # titles that each lasted a second or two.
-                settled = (state.tick - self.chapter.started_tick) >= cfg.CHAPTER_MIN_TICKS
+                settled = (state.t - self.chapter.started_t) >= cfg.CHAPTER_MIN_SECONDS
                 clearly_better = best_score >= self.chapter.score + cfg.CHAPTER_SUPERSEDE_MARGIN
                 if settled and clearly_better:
                     # Closing the old one explicitly keeps the saga honest;
@@ -241,20 +244,19 @@ class MilestoneTracker:
                     self._close(state, "superseded")
                     self._open(state, best_title, sig, best_score)
                 else:
-                    self.chapter.last_signal_tick = state.tick
+                    self.chapter.last_signal_t = state.t
 
         if self.chapter.active:
-            stale = (state.tick - self.chapter.last_signal_tick) >= cfg.CHAPTER_END_GRACE_TICKS
+            stale = (state.t - self.chapter.last_signal_t) >= cfg.CHAPTER_END_GRACE_SECONDS
             if stale:
                 self._close(state, "stability_return")
 
     def _open(self, state, title: str, sig: Signals, score: float = 0.0) -> None:
         self.chapter = ChapterState(
             active=True, title=title, score=score,
-            started_tick=state.tick, started_t=state.t,
-            last_signal_tick=state.tick,
+            started_t=state.t, last_signal_t=state.t,
         )
-        self._last_chapter_change_tick = state.tick
+        self._last_chapter_change_t = state.t
         state.history.emit(
             state.t, state.tick, EventKind.CHAPTER_START,
             {"title": title, "pressure": round(sig.pressure, 3)},
@@ -266,7 +268,7 @@ class MilestoneTracker:
         self.past_chapters.append(
             ChapterRecord(title=ch.title, started_t=ch.started_t, ended_t=state.t))
         self.chapter = ChapterState()
-        self._last_chapter_change_tick = state.tick
+        self._last_chapter_change_t = state.t
         state.history.emit(
             state.t, state.tick, EventKind.CHAPTER_END,
             {"title": ch.title, "duration": round(state.t - ch.started_t, 1)},

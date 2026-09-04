@@ -140,7 +140,10 @@ class HistoryLog:
         self.notable: Deque[HistoryEvent] = deque(maxlen=max_notable)
         self.saga: List[HistoryEvent] = []          # MAJOR beats, kept whole
         self.counts: Dict[str, int] = {}
-        self._last_tick: Dict[str, int] = {}
+        # Indexed by simulated time so callers can ask "in the last N
+        # seconds" rather than "in the last N ticks", which is a
+        # different question whenever the frame rate moves.
+        self._last_t: Dict[str, float] = {}
 
     def emit(
         self,
@@ -160,7 +163,7 @@ class HistoryLog:
         )
         self.events.append(ev)
         self.counts[kind] = self.counts.get(kind, 0) + 1
-        self._last_tick[kind] = tick
+        self._last_t[kind] = t
 
         sig = ev.significance
         if sig >= Significance.NOTABLE:
@@ -187,8 +190,8 @@ class HistoryLog:
     def count(self, kind: str) -> int:
         return self.counts.get(kind, 0)
 
-    def last_tick_of(self, kind: str) -> int:
-        return self._last_tick.get(kind, -10**9)
+    def last_time_of(self, kind: str) -> float:
+        return self._last_t.get(kind, -1e18)
 
-    def any_since(self, tick: int, kinds: List[str]) -> bool:
-        return any(self._last_tick.get(k, -10**9) >= tick for k in kinds)
+    def any_since(self, t: float, kinds: List[str]) -> bool:
+        return any(self._last_t.get(k, -1e18) >= t for k in kinds)

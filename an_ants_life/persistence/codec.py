@@ -86,15 +86,16 @@ def _event_from_dict(d: Dict[str, Any]) -> HistoryEvent:
 
 def _ant_to_dict(a: Ant) -> Dict[str, Any]:
     return {"id": a.id, "role": a.role.value, "x": a.x, "y": a.y, "vx": a.vx, "vy": a.vy,
-            "carrying": a.carrying, "hp": a.hp, "last_combat_tick": a.last_combat_tick,
-            "detour_until_tick": a.detour_until_tick, "detour_side": a.detour_side,
+            "carrying": a.carrying, "hp": a.hp, "last_combat_t": a.last_combat_t,
+            "detour_until_t": a.detour_until_t, "detour_side": a.detour_side,
             "recruited_to": a.recruited_to}
 
 
 def _ant_from_dict(d: Dict[str, Any]) -> Ant:
     return Ant(id=d["id"], role=Role(d["role"]), x=d["x"], y=d["y"], vx=d["vx"], vy=d["vy"],
-               carrying=d["carrying"], hp=d["hp"], last_combat_tick=d["last_combat_tick"],
-               detour_until_tick=d.get("detour_until_tick", -1),
+               carrying=d["carrying"], hp=d["hp"],
+               last_combat_t=d.get("last_combat_t", -1e18),
+               detour_until_t=d.get("detour_until_t", -1.0),
                detour_side=d.get("detour_side", 1),
                recruited_to=d.get("recruited_to"))
 
@@ -102,8 +103,8 @@ def _ant_from_dict(d: Dict[str, Any]) -> Ant:
 def _enemy_to_dict(e: Enemy) -> Dict[str, Any]:
     return {"id": e.id, "kind": e.kind.value, "x": e.x, "y": e.y, "hp": e.hp,
             "speed": e.speed, "atk": e.atk, "terr_influence": e.terr_influence,
-            "vx": e.vx, "vy": e.vy, "last_combat_tick": e.last_combat_tick,
-            "detour_until_tick": e.detour_until_tick, "detour_side": e.detour_side,
+            "vx": e.vx, "vy": e.vy, "last_combat_t": e.last_combat_t,
+            "detour_until_t": e.detour_until_t, "detour_side": e.detour_side,
             "spawn_x": e.spawn_x, "spawn_y": e.spawn_y,
             "steal_progress": e.steal_progress, "carrying": e.carrying,
             "fleeing": e.fleeing, "escaped": e.escaped}
@@ -113,8 +114,8 @@ def _enemy_from_dict(d: Dict[str, Any]) -> Enemy:
     e = Enemy(id=d["id"], kind=EnemyKind(d["kind"]), x=d["x"], y=d["y"], hp=d["hp"],
               speed=d["speed"], atk=d["atk"], terr_influence=d["terr_influence"])
     e.vx, e.vy = d["vx"], d["vy"]
-    e.last_combat_tick = d["last_combat_tick"]
-    e.detour_until_tick = d.get("detour_until_tick", -1)
+    e.last_combat_t = d.get("last_combat_t", -1e18)
+    e.detour_until_t = d.get("detour_until_t", -1.0)
     e.detour_side = d.get("detour_side", 1)
     e.spawn_x, e.spawn_y = d.get("spawn_x", e.x), d.get("spawn_y", e.y)
     e.steal_progress = d.get("steal_progress", 0.0)
@@ -161,8 +162,8 @@ def dump_state(state: GameState) -> Dict[str, Any]:
         },
         "territory": {
             "grid": _flat(state.territory.grid),
-            "last_border_incident_tick": state.territory._last_border_incident_tick,
-            "last_expansion_tick": state.territory._last_expansion_tick,
+            "last_border_incident_t": state.territory._last_border_incident_t,
+            "last_expansion_t": state.territory._last_expansion_t,
         },
         "colony": {
             "food_store": colony.food_store,
@@ -180,20 +181,19 @@ def dump_state(state: GameState) -> Dict[str, Any]:
             "events": [_event_to_dict(e) for e in hist.events],
             "saga": [_event_to_dict(e) for e in hist.saga],
             "counts": hist.counts,
-            "last_tick": hist._last_tick,
+            "last_t": hist._last_t,
         },
         "milestones": {
             "chapter": {"active": tracker.chapter.active, "title": tracker.chapter.title,
                         "score": tracker.chapter.score,
-                        "started_tick": tracker.chapter.started_tick,
                         "started_t": tracker.chapter.started_t,
-                        "last_signal_tick": tracker.chapter.last_signal_tick},
+                        "last_signal_t": tracker.chapter.last_signal_t},
             "past_chapters": [{"title": c.title, "started_t": c.started_t,
                                "ended_t": c.ended_t} for c in tracker.past_chapters],
             "earned": sorted(tracker._earned),
             "records": tracker.milestones,
-            "last_change_tick": tracker._last_chapter_change_tick,
-            "last_predator_tick": tracker._last_predator_tick,
+            "last_change_t": tracker._last_chapter_change_t,
+            "last_predator_t": tracker._last_predator_t,
             "pop_samples": [list(s) for s in tracker._pop_samples],
             "pressure_samples": list(tracker._pressure_samples),
         },
@@ -245,8 +245,8 @@ def load_state(data: Dict[str, Any]) -> GameState:
 
     terr = data["territory"]
     state.territory.grid = _unflat(terr["grid"], state.territory.cols, state.territory.rows)
-    state.territory._last_border_incident_tick = terr["last_border_incident_tick"]
-    state.territory._last_expansion_tick = terr["last_expansion_tick"]
+    state.territory._last_border_incident_t = terr.get("last_border_incident_t", -1e18)
+    state.territory._last_expansion_t = terr.get("last_expansion_t", -1e18)
 
     col = data["colony"]
     colony = state.colony
@@ -299,7 +299,7 @@ def _load_history(state: GameState, data: Dict[str, Any]) -> None:
         maxlen=hist.notable.maxlen)
     hist.saga = [_event_from_dict(d) for d in data["saga"]]
     hist.counts = dict(data["counts"])
-    hist._last_tick = {k: int(v) for k, v in data["last_tick"].items()}
+    hist._last_t = {k: float(v) for k, v in data.get("last_t", {}).items()}
 
 
 def _load_milestones(state: GameState, data: Dict[str, Any]) -> None:
@@ -307,17 +307,16 @@ def _load_milestones(state: GameState, data: Dict[str, Any]) -> None:
     ch = data["chapter"]
     tracker.chapter = ChapterState(active=ch["active"], title=ch["title"],
                                    score=ch.get("score", 0.0),
-                                   started_tick=ch["started_tick"],
                                    started_t=ch["started_t"],
-                                   last_signal_tick=ch["last_signal_tick"])
+                                   last_signal_t=ch.get("last_signal_t", -1.0))
     tracker.past_chapters = [
         ChapterRecord(title=c["title"], started_t=c["started_t"], ended_t=c["ended_t"])
         for c in data["past_chapters"]
     ]
     tracker._earned = set(data["earned"])
     tracker.milestones = list(data["records"])
-    tracker._last_chapter_change_tick = data["last_change_tick"]
-    tracker._last_predator_tick = data.get("last_predator_tick", -10 ** 9)
+    tracker._last_chapter_change_t = data.get("last_change_t", -1e18)
+    tracker._last_predator_t = data.get("last_predator_t", -1e18)
     tracker._pop_samples = deque((tuple(s) for s in data["pop_samples"]),
                                  maxlen=tracker._pop_samples.maxlen)
     tracker._pressure_samples = deque(data["pressure_samples"],

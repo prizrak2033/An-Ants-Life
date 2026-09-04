@@ -26,8 +26,8 @@ class TerritoryModel:
                 if math.hypot(cx - nest_cx, cy - nest_cy) <= cfg.TERR_HOME_BIAS_RADIUS_CELLS:
                     self.grid[cx][cy] = cfg.TERR_HOME_BIAS_VALUE
 
-        self._last_border_incident_tick = -10_000
-        self._last_expansion_tick = -10_000
+        self._last_border_incident_t = -1e18
+        self._last_expansion_t = -1e18
 
     def _cell_of(self, x: float, y: float) -> Tuple[int, int]:
         cfg = self.cfg
@@ -111,8 +111,8 @@ class TerritoryModel:
         state.colony.emergency["territory_control"] = nest_control
 
         if pressure >= cfg.TERR_BORDER_INCIDENT_PRESSURE and \
-                (state.tick - self._last_border_incident_tick) >= cfg.TERR_EVENT_COOLDOWN_TICKS:
-            self._last_border_incident_tick = state.tick
+                (state.t - self._last_border_incident_t) >= cfg.TERR_EVENT_COOLDOWN_SECONDS:
+            self._last_border_incident_t = state.t
             state.colony.metrics["border_incidents"] += 1
             state.history.emit(
                 state.t, state.tick, EventKind.TERR_BORDER_INCIDENT,
@@ -123,8 +123,8 @@ class TerritoryModel:
             )
 
         if nest_control >= cfg.TERR_EXPANSION_CONTROL and \
-                (state.tick - self._last_expansion_tick) >= cfg.TERR_EVENT_COOLDOWN_TICKS:
-            self._last_expansion_tick = state.tick
+                (state.t - self._last_expansion_t) >= cfg.TERR_EVENT_COOLDOWN_SECONDS:
+            self._last_expansion_t = state.t
             state.colony.metrics["expansions"] += 1
             state.history.emit(
                 state.t, state.tick, EventKind.TERR_EXPANSION,

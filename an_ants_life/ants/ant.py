@@ -33,8 +33,8 @@ class Ant:
     vy: float = 0.0
     carrying: float = 0.0
     hp: int = 3
-    last_combat_tick: int = -10_000
-    detour_until_tick: int = -1
+    last_combat_t: float = -1e18
+    detour_until_t: float = -1.0
     detour_side: int = 1
     # Forage mark this ant has answered, if any. Cleared the moment it
     # actually has food, so a recruit is never held to a mark once it has
@@ -55,7 +55,7 @@ class Ant:
         # Movement. While rounding an obstacle the ant holds its detour
         # heading and ignores the target, otherwise it would turn straight
         # back into the face it just hit.
-        detouring = state.tick < self.detour_until_tick
+        detouring = state.t < self.detour_until_t
         if intent.target is not None and not detouring:
             tx, ty = intent.target
             dx, dy = tx - self.x, ty - self.y
@@ -77,7 +77,7 @@ class Ant:
             turned = terrain.deflect(self.x, self.y, self.vx, self.vy, dt, self.detour_side)
             if turned is not None:
                 self.vx, self.vy, self.detour_side = turned
-                self.detour_until_tick = state.tick + cfg.TERRAIN_DETOUR_TICKS
+                self.detour_until_t = state.t + cfg.TERRAIN_DETOUR_SECONDS
                 px = _clamp(self.x + self.vx * dt, 0, cfg.WORLD_W)
                 py = _clamp(self.y + self.vy * dt, 0, cfg.WORLD_H)
                 (self.x, self.y), _ = terrain.move(self.x, self.y, px, py)

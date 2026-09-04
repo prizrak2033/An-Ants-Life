@@ -40,12 +40,13 @@ class SimConfig:
     # out of the same food budget that feeds everybody.
     #
     # Fleeing works because every enemy is slower than an ant (40 against
-    # 34, 28 and 22), so this is an escape rather than a delay. Set
-    # between COMBAT_ENGAGE_RADIUS, so they break off before contact, and
-    # the soldiers' COMBAT_SCAN_RADIUS, so a fleeing worker draws its
+    # 34, 28 and 22), so this is an escape rather than a delay. The radius
+    # sits between COMBAT_ENGAGE_RADIUS, so they break off before contact,
+    # and the soldiers' COMBAT_SCAN_RADIUS, so a fleeing worker draws its
     # escort in rather than running past it.
-    # Inside this distance from the nest they stand and fight instead.
-    # That exception is not a detail, it is the whole mechanic. Fleeing
+    #
+    # ANT_FLEE_HOME_RADIUS is the exception, and it is not a detail - it
+    # is the whole mechanic. Inside it they stand and fight. Fleeing
     # everywhere was measured and it worked exactly as designed on its
     # own terms - casualties fell 46%, births finally overtook losses,
     # and the standing population went from 27 to 43 - while survival
@@ -99,7 +100,7 @@ class SimConfig:
     # How long a mover commits to a detour heading after hitting a face.
     # Without persistence it re-aims at the obstacle the very next tick
     # and vibrates against it instead of travelling around.
-    TERRAIN_DETOUR_TICKS: int = 14
+    TERRAIN_DETOUR_SECONDS: float = 0.4667
 
     SAND_SPEED_MULT: float = 0.85
     LITTER_SPEED_MULT: float = 0.95
@@ -131,12 +132,12 @@ class SimConfig:
     # Emergencies
     EMERGENCY_FAMINE_ON_HUNGER: float = 0.70
     EMERGENCY_FAMINE_OFF_HUNGER: float = 0.35
-    EMERGENCY_FAMINE_MIN_TICKS: int = 180
+    EMERGENCY_FAMINE_MIN_SECONDS: float = 6.0
     EMERGENCY_FAMINE_STRESS_BONUS: float = 0.25
 
     EMERGENCY_RAID_STRESS_GATE: float = 0.90
-    EMERGENCY_RAID_CHANCE_PER_TICK: float = 0.0025
-    EMERGENCY_RAID_COOLDOWN_TICKS: int = 900
+    EMERGENCY_RAID_CHANCE_PER_SEC: float = 0.075
+    EMERGENCY_RAID_COOLDOWN_SECONDS: float = 30.0
     EMERGENCY_RAID_MIN_KILLS: int = 1
     EMERGENCY_RAID_MAX_KILLS: int = 3
 
@@ -162,7 +163,7 @@ class SimConfig:
 
     TERR_BORDER_INCIDENT_PRESSURE: float = 0.72
     TERR_EXPANSION_CONTROL: float = 0.58
-    TERR_EVENT_COOLDOWN_TICKS: int = 300
+    TERR_EVENT_COOLDOWN_SECONDS: float = 10.0
 
     TERR_HOME_BIAS_RADIUS_CELLS: int = 5
     TERR_HOME_BIAS_VALUE: float = 0.6
@@ -246,7 +247,7 @@ class SimConfig:
     COMBAT_ENABLE: bool = True
     COMBAT_SCAN_RADIUS: float = 14.0
     COMBAT_ENGAGE_RADIUS: float = 4.0
-    COMBAT_TICK_COOLDOWN: int = 10
+    COMBAT_COOLDOWN_SECONDS: float = 0.3333
 
     ANT_HP_MAX: int = 4
     ANT_WORKER_ATK: int = 1
@@ -360,14 +361,14 @@ class SimConfig:
 
     # Chapters
     CHAPTER_ENABLE: bool = True
-    CHAPTER_COOLDOWN_TICKS: int = 600
-    CHAPTER_WINDOW_TICKS: int = 900
-    CHAPTER_END_GRACE_TICKS: int = 360
+    CHAPTER_COOLDOWN_SECONDS: float = 20.0
+    CHAPTER_WINDOW_SECONDS: float = 30.0
+    CHAPTER_END_GRACE_SECONDS: float = 12.0
     # A chapter must run this long before anything can displace it, and
     # the challenger has to fit clearly better rather than by a hair.
     # Without both, the saga churned out chapters lasting 0-3 seconds -
     # a list of titles rather than a story.
-    CHAPTER_MIN_TICKS: int = 300
+    CHAPTER_MIN_SECONDS: float = 10.0
     CHAPTER_SUPERSEDE_MARGIN: float = 0.5
 
     # Player agency
@@ -514,6 +515,10 @@ class SimConfig:
     )
 
     # Debug/HUD
+    # These two stay in ticks on purpose. They are a render cadence -
+    # how often to reprint - not a simulation rate, and "every N
+    # frames" is the right unit for that. Everything that affects the
+    # world is expressed per second.
     HUD_EVERY_TICKS: int = 15
     DEBUG_ENABLE: bool = True
     DEBUG_EVERY_TICKS: int = 120

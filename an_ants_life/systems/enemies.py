@@ -42,7 +42,7 @@ def _spawn_point(state, cfg) -> Optional[Tuple[float, float]]:
 
 def _steer(state, cfg, enemy: Enemy, tx: float, ty: float, dt: float) -> None:
     terrain = state.terrain
-    if state.tick >= enemy.detour_until_tick:
+    if state.t >= enemy.detour_until_t:
         dx, dy = tx - enemy.x, ty - enemy.y
         d = math.hypot(dx, dy) + 1e-6
         speed = enemy.speed * terrain.speed_mult(enemy.x, enemy.y)
@@ -53,12 +53,12 @@ def _steer(state, cfg, enemy: Enemy, tx: float, ty: float, dt: float) -> None:
     (enemy.x, enemy.y), blocked = terrain.move(enemy.x, enemy.y, px, py)
 
     if blocked:
-        if state.tick >= enemy.detour_until_tick:
+        if state.t >= enemy.detour_until_t:
             enemy.detour_side = 1 if (enemy.id & 1) else -1
         turned = terrain.deflect(enemy.x, enemy.y, enemy.vx, enemy.vy, dt, enemy.detour_side)
         if turned is not None:
             enemy.vx, enemy.vy, enemy.detour_side = turned
-            enemy.detour_until_tick = state.tick + cfg.TERRAIN_DETOUR_TICKS
+            enemy.detour_until_t = state.t + cfg.TERRAIN_DETOUR_SECONDS
             px = min(max(0.0, enemy.x + enemy.vx * dt), cfg.WORLD_W)
             py = min(max(0.0, enemy.y + enemy.vy * dt), cfg.WORLD_H)
             (enemy.x, enemy.y), _ = terrain.move(enemy.x, enemy.y, px, py)

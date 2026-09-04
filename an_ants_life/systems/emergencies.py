@@ -16,18 +16,18 @@ def update_emergencies(state, dt: float) -> None:
     emergency = colony.emergency
 
     _update_famine(state, cfg, colony, emergency)
-    _update_raid(state, cfg, colony, emergency)
+    _update_raid(state, cfg, colony, emergency, dt)
 
 
 def _update_famine(state, cfg, colony, emergency) -> None:
     hunger = emergency.get("hunger", 0.0)
     active = emergency.get("famine_active", False)
-    started_tick = emergency.get("famine_started_tick", -1)
+    started_t = emergency.get("famine_started_t", -1.0)
 
     if not active:
         if hunger >= cfg.EMERGENCY_FAMINE_ON_HUNGER:
             emergency["famine_active"] = True
-            emergency["famine_started_tick"] = state.tick
+            emergency["famine_started_t"] = state.t
             colony.stress = min(1.0, colony.stress + cfg.EMERGENCY_FAMINE_STRESS_BONUS)
             state.history.emit(
                 state.t, state.tick, EventKind.EMERGENCY_FAMINE_START,
@@ -39,8 +39,8 @@ def _update_famine(state, cfg, colony, emergency) -> None:
             _reassign_for_famine(state, cfg, colony)
         return
 
-    elapsed = state.tick - started_tick
-    if hunger <= cfg.EMERGENCY_FAMINE_OFF_HUNGER and elapsed >= cfg.EMERGENCY_FAMINE_MIN_TICKS:
+    elapsed = state.t - started_t
+    if hunger <= cfg.EMERGENCY_FAMINE_OFF_HUNGER and elapsed >= cfg.EMERGENCY_FAMINE_MIN_SECONDS:
         emergency["famine_active"] = False
         state.history.emit(
             state.t, state.tick, EventKind.EMERGENCY_FAMINE_END,
@@ -83,16 +83,16 @@ def _reassign_for_famine(state, cfg, colony) -> None:
         )
 
 
-def _update_raid(state, cfg, colony, emergency) -> None:
-    last_raid_tick = emergency.get("last_raid_tick", -10_000)
-    if (state.tick - last_raid_tick) < cfg.EMERGENCY_RAID_COOLDOWN_TICKS:
+def _update_raid(state, cfg, colony, emergency, dt: float) -> None:
+    last_raid_t = emergency.get("last_raid_t", -1e18)
+    if (state.t - last_raid_t) < cfg.EMERGENCY_RAID_COOLDOWN_SECONDS:
         return
     if colony.stress < cfg.EMERGENCY_RAID_STRESS_GATE:
         return
-    if random.random() >= cfg.EMERGENCY_RAID_CHANCE_PER_TICK:
+    if random.random() >= cfg.EMERGENCY_RAID_CHANCE_PER_SEC * dt:
         return
 
-    emergency["last_raid_tick"] = state.tick
+    emergency["last_raid_t"] = state.t
     kills = min(random.randint(cfg.EMERGENCY_RAID_MIN_KILLS, cfg.EMERGENCY_RAID_MAX_KILLS), len(colony.ants))
     victims = random.sample(colony.ants, kills) if kills else []
     victim_ids = {v.id for v in victims}
