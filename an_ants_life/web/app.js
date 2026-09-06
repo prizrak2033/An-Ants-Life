@@ -15,45 +15,160 @@ const FOOD_COLOR = "#fab219";
 const CLAIMED_COLOR = "#3987e5";
 const QUEEN_COLOR = "#ffffff";
 
-const DIVERGING_BLUE = [57, 135, 229];   // friendly territory
-const DIVERGING_RED = [230, 103, 103];   // enemy territory
+const DIVERGING_BLUE = [88, 138, 190];   // friendly territory
+const DIVERGING_RED = [198, 94, 88];     // enemy territory
 const DIVERGING_GRAY = [56, 56, 53];     // contested / neutral
 // The territory layer already owns blue<->red, so trails take colors from
 // outside that pair: gold ties the supply route to the food it carries,
 // and explored ground is a neutral wash that reads as ground covered
 // rather than as a third data series competing for attention.
 const PHERO_FOOD_RGB = [250, 178, 25];   // gold - active supply route
-const PHERO_HOME_RGB = [154, 164, 178];  // neutral - explored ground
+// Warm, not cool. As a blue-grey this covered most of the map - it marks
+// everywhere the colony has walked - and stacked with the blue territory
+// tint until the whole world read as cold slate rather than soil.
+const PHERO_HOME_RGB = [152, 132, 100];  // warm dust - explored ground
 
 // Terrain, indexed by the wire codes in world/terrain.py's _ORDER.
 // Deliberately dark and low-chroma: this is the ground everything else is
 // read against, so it has to describe the map without competing with the
 // territory heatmap or the trails drawn on top of it. SOIL is null - it is
 // the base surface and gets left unpainted.
-const TERRAIN_FILL = [null, "#3a3125", "#243522", "#414147", "#123c4a"];
+// Kept close in value to the bare soil they sit in. Pitched brighter than
+// the ground, these stopped reading as patches of material and started
+// reading as islands floating on black - the loudest thing on a screen
+// whose subject is supposed to be the ants.
+const TERRAIN_RGB = [null, [64, 55, 42], [44, 56, 40], [58, 58, 63], [24, 56, 68]];
+
+// A cheap deterministic hash, so the grain and the crumb scatter are the
+// same every frame instead of boiling.
+function hash01(n) {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+// Painting a field grid as one filled rect per cell is what made the map
+// read as tiles. These layers are instead drawn one pixel per cell into a
+// tiny bitmap and scaled up with smoothing on, which costs less and comes
+// out as soft ground rather than a mosaic.
+function gridBitmap(cols, rows, paint) {
+  const off = document.createElement("canvas");
+  off.width = cols;
+  off.height = rows;
+  const c = off.getContext("2d");
+  const img = c.createImageData(cols, rows);
+  paint(img.data);
+  c.putImageData(img, 0, 0);
+  return off;
+}
+
+function blitSmooth(bitmap, w, h, alpha) {
+  const prev = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  if (alpha !== undefined) ctx.globalAlpha = alpha;
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  ctx.globalAlpha = 1;
+  ctx.imageSmoothingEnabled = prev;
+}
+
+// Bare ground was a flat near-black fill, which left the ants-only view an
+// empty void. A little depth and grain gives them something to be on.
+let groundCache = { key: null, canvas: null };
+function groundLayer(w, h) {
+  const key = `${w}x${h}`;
+  if (groundCache.key === key) return groundCache.canvas;
+  const off = document.createElement("canvas");
+  off.width = w; off.height = h;
+  const c = off.getContext("2d");
+
+  const base = c.createLinearGradient(0, 0, 0, h);
+  base.addColorStop(0, "#2b2620");
+  base.addColorStop(1, "#1d1a16");
+  c.fillStyle = base;
+  c.fillRect(0, 0, w, h);
+
+  // Soil grain: sparse specks, not a noise field, so it reads as ground
+  // texture and never competes with an ant.
+  for (let i = 0; i < 2600; i++) {
+    const x = hash01(i * 2.1) * w;
+    const y = hash01(i * 3.7 + 9) * h;
+    const a = 0.010 + hash01(i * 5.3) * 0.030;
+    c.fillStyle = hash01(i * 7.9) > 0.5
+      ? `rgba(210,196,168,${a})` : `rgba(0,0,0,${a * 1.5})`;
+    c.fillRect(x, y, 1.4, 1.4);
+  }
+
+  // Vignette, to settle the eye toward the middle of the map.
+  const vig = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.28,
+                                     w / 2, h / 2, Math.max(w, h) * 0.72);
+  vig.addColorStop(0, "rgba(0,0,0,0)");
+  vig.addColorStop(1, "rgba(0,0,0,0.32)");
+  c.fillStyle = vig;
+  c.fillRect(0, 0, w, h);
+
+  groundCache = { key, canvas: off };
+  return off;
+}
 
 // Static for the life of a map, so it is rasterized once and blitted.
 let terrainCache = { key: null, canvas: null };
 
-function terrainLayer(terr, w, h, scaleX, scaleY) {
+function terrainLayer(terr, w, h) {
   const key = `${w}x${h}:${terr.tiles}`;
   if (terrainCache.key === key) return terrainCache.canvas;
 
-  const off = document.createElement("canvas");
-  off.width = w;
-  off.height = h;
-  const c = off.getContext("2d");
-  const cw = terr.cell * scaleX, ch = terr.cell * scaleY;
-
-  for (let cx = 0; cx < terr.cols; cx++) {
-    for (let cy = 0; cy < terr.rows; cy++) {
-      const code = terr.tiles.charCodeAt(cx * terr.rows + cy) - 48;
-      const fill = TERRAIN_FILL[code];
-      if (!fill) continue;
-      c.fillStyle = fill;
-      c.fillRect(cx * cw, cy * ch, cw + 1, ch + 1);
+  // Supersampled before the upscale. Smoothing a bitmap that is one pixel
+  // per cell magnifies it ~24x and the map turns to fog - patches stop
+  // reading as ground and start reading as weather. Sampling the same
+  // tiles onto a 4x grid, with the lookup jittered so boundaries wander
+  // instead of running along cell lines, keeps an edge on a patch while
+  // still losing the mosaic.
+  const S = 8;
+  const bw = terr.cols * S, bh = terr.rows * S;
+  const bmp = gridBitmap(bw, bh, (d) => {
+    for (let bx = 0; bx < bw; bx++) {
+      for (let by = 0; by < bh; by++) {
+        // Jitter from a coarser field than the sample grid, so
+        // neighbouring pixels displace together. Per-pixel white noise
+        // here shreds a boundary into spikes and the patches come out
+        // looking like frost; a locally coherent offset makes the same
+        // edge wander instead, which reads as ground.
+        const cxf = Math.floor(bx / 5), cyf = Math.floor(by / 5);
+        const fxf = Math.floor(bx / 2), fyf = Math.floor(by / 2);
+        const jx = (hash01(cxf * 3.7 + cyf * 11.1) - 0.5) * 3.2
+                 + (hash01(fxf * 13.1 + fyf * 5.5) - 0.5) * 1.1;
+        const jy = (hash01(cxf * 5.9 + cyf * 2.3) - 0.5) * 3.2
+                 + (hash01(fxf * 7.3 + fyf * 17.9) - 0.5) * 1.1;
+        const cx = Math.max(0, Math.min(terr.cols - 1, Math.round((bx + jx) / S - 0.5)));
+        const cy = Math.max(0, Math.min(terr.rows - 1, Math.round((by + jy) / S - 0.5)));
+        const code = terr.tiles.charCodeAt(cx * terr.rows + cy) - 48;
+        const rgb = TERRAIN_RGB[code];
+        const i = (by * bw + bx) * 4;
+        if (!rgb) { d[i + 3] = 0; continue; }
+        // A little variation so a patch of one material is not a flat
+        // sheet of a single colour.
+        const j = 0.93 + hash01(bx * 31.4 + by * 7.7) * 0.14;
+        d[i] = Math.min(255, rgb[0] * j);
+        d[i + 1] = Math.min(255, rgb[1] * j);
+        d[i + 2] = Math.min(255, rgb[2] * j);
+        d[i + 3] = 255;
+      }
     }
-  }
+  });
+
+  // Upscale once into a full-size layer so the per-frame path is a plain blit.
+  const off = document.createElement("canvas");
+  off.width = w; off.height = h;
+  const c = off.getContext("2d");
+  c.imageSmoothingEnabled = true;
+  c.imageSmoothingQuality = "high";
+  // A touch of blur on top of the interpolation. Bilinear alone still
+  // steps visibly at this magnification, and the map is static, so this
+  // costs one upscale for the life of the colony.
+  c.filter = "blur(1.6px)";
+  c.drawImage(bmp, 0, 0, w, h);
+  c.filter = "none";
+
   terrainCache = { key, canvas: off };
   return off;
 }
@@ -116,31 +231,38 @@ function playNewEvents(data) {
 
 function lerp(a, b, t) { return a + (b - a) * t; }
 
-function divergingColor(v) {
+function divergingRGB(v) {
   v = Math.max(-1, Math.min(1, v));
   const [r, g, b] = v >= 0
     ? [lerp(DIVERGING_GRAY[0], DIVERGING_BLUE[0], v), lerp(DIVERGING_GRAY[1], DIVERGING_BLUE[1], v), lerp(DIVERGING_GRAY[2], DIVERGING_BLUE[2], v)]
     : [lerp(DIVERGING_GRAY[0], DIVERGING_RED[0], -v), lerp(DIVERGING_GRAY[1], DIVERGING_RED[1], -v), lerp(DIVERGING_GRAY[2], DIVERGING_RED[2], -v)];
-  return `rgb(${r | 0}, ${g | 0}, ${b | 0})`;
+  return [r | 0, g | 0, b | 0];
 }
 
-function drawTerritory(terr, scaleX, scaleY) {
-  const cw = terr.cell * scaleX, ch = terr.cell * scaleY;
-  for (let cx = 0; cx < terr.cols; cx++) {
-    for (let cy = 0; cy < terr.rows; cy++) {
-      const v = terr.grid[cx * terr.rows + cy];
-      // Fade with how decided the cell is, instead of a flat wash. A
-      // constant alpha painted neutral ground just as heavily as held
-      // ground, which blanketed the whole map and buried the terrain
-      // underneath; now contested ground shows the terrain through it.
-      const strength = Math.abs(v);
-      if (strength < 0.06) continue;
-      ctx.fillStyle = divergingColor(v);
-      ctx.globalAlpha = Math.min(0.55, strength * 0.62);
-      ctx.fillRect(cx * cw, cy * ch, cw + 1, ch + 1);
+function drawTerritory(terr, w, h) {
+  const bmp = gridBitmap(terr.cols, terr.rows, (d) => {
+    for (let cx = 0; cx < terr.cols; cx++) {
+      for (let cy = 0; cy < terr.rows; cy++) {
+        const v = terr.grid[cx * terr.rows + cy];
+        const i = (cy * terr.cols + cx) * 4;
+        // Fade with how decided the cell is, instead of a flat wash. A
+        // constant alpha painted neutral ground just as heavily as held
+        // ground, which blanketed the whole map and buried the terrain
+        // underneath; now contested ground shows the terrain through it.
+        // Held ground is background information, so it stays faint and
+        // only appears once a cell is actually decided. Smoothing this
+        // layer made it worse before it made it better: the same alpha
+        // that looked patchy as tiles became one flat sheet of blue over
+        // the whole map once the edges were gone.
+        const strength = Math.abs(v);
+        if (strength < 0.18) { d[i + 3] = 0; continue; }
+        const [r, g, b] = divergingRGB(v);
+        d[i] = r; d[i + 1] = g; d[i + 2] = b;
+        d[i + 3] = Math.min(0.20, (strength - 0.18) * 0.30) * 255;
+      }
     }
-  }
-  ctx.globalAlpha = 1;
+  });
+  blitSmooth(bmp, w, h);
 }
 
 // The two channels live on wildly different scales - only laden ants lay
@@ -149,112 +271,168 @@ function drawTerritory(terr, scaleX, scaleY) {
 // hundreds). Normalizing each against its own peak keeps both legible
 // instead of one washing the map out and the other vanishing; `floor`
 // stops a nearly-empty channel from amplifying noise to full strength.
-function drawPheromoneChannel(grid, cols, rows, cell, scaleX, scaleY, rgb, maxAlpha, floor) {
+function drawPheromoneChannel(grid, cols, rows, w, h, rgb, maxAlpha, floor) {
   let peak = floor;
   for (let i = 0; i < grid.length; i++) {
     if (grid[i] > peak) peak = grid[i];
   }
-
-  const cw = cell * scaleX, ch = cell * scaleY;
   const [r, g, b] = rgb;
-  for (let cx = 0; cx < cols; cx++) {
-    for (let cy = 0; cy < rows; cy++) {
-      const v = grid[cx * rows + cy];
-      if (v <= 0) continue;
-      // gamma < 1 lifts mid-strength trails into visibility
-      const alpha = maxAlpha * Math.pow(v / peak, 0.6);
-      if (alpha < 0.012) continue;
-      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-      ctx.fillRect(cx * cw, cy * ch, cw + 1, ch + 1);
+  const bmp = gridBitmap(cols, rows, (d) => {
+    for (let cx = 0; cx < cols; cx++) {
+      for (let cy = 0; cy < rows; cy++) {
+        const v = grid[cx * rows + cy];
+        const i = (cy * cols + cx) * 4;
+        if (v <= 0) { d[i + 3] = 0; continue; }
+        // gamma < 1 lifts mid-strength trails into visibility
+        const alpha = maxAlpha * Math.pow(v / peak, 0.6);
+        if (alpha < 0.012) { d[i + 3] = 0; continue; }
+        d[i] = r; d[i + 1] = g; d[i + 2] = b;
+        d[i + 3] = Math.min(1, alpha) * 255;
+      }
     }
-  }
+  });
+  blitSmooth(bmp, w, h);
 }
 
+// The nest is the one built thing on the map, so it gets a mound with a
+// mouth rather than a white glow that reads as a lens flare.
 function drawNest(nest, scaleX, scaleY) {
   const px = nest[0] * scaleX, py = nest[1] * scaleY;
-  const grad = ctx.createRadialGradient(px, py, 0, px, py, 26);
-  grad.addColorStop(0, "rgba(255,255,255,0.16)");
-  grad.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = grad;
+  const mound = ctx.createRadialGradient(px, py, 2, px, py, 30);
+  mound.addColorStop(0.00, "rgba(126,101,66,0.85)");
+  mound.addColorStop(0.45, "rgba(96,77,50,0.55)");
+  mound.addColorStop(1.00, "rgba(70,58,40,0)");
+  ctx.fillStyle = mound;
   ctx.beginPath();
-  ctx.arc(px, py, 26, 0, Math.PI * 2);
+  ctx.arc(px, py, 30, 0, Math.PI * 2);
   ctx.fill();
+
+  // Excavated spoil, scattered the same way every frame.
+  for (let i = 0; i < 26; i++) {
+    const a = hash01(i * 12.9) * Math.PI * 2;
+    const rr = 8 + hash01(i * 4.4 + 3) * 17;
+    ctx.fillStyle = `rgba(150,124,84,${0.10 + hash01(i * 8.1) * 0.16})`;
+    ctx.beginPath();
+    ctx.arc(px + Math.cos(a) * rr, py + Math.sin(a) * rr,
+            0.7 + hash01(i * 2.2) * 1.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // The entrance itself: a dark mouth the ants stream in and out of.
+  ctx.fillStyle = "rgba(18,14,10,0.9)";
+  ctx.beginPath();
+  ctx.ellipse(px, py, 6.5, 5.0, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(163,136,92,0.55)";
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
 }
 
+// Food as a scatter of crumbs rather than one disc: a pile that is being
+// eaten away should look like it is being eaten away.
 function drawFoodSources(sources, scaleX, scaleY) {
   for (const [x, y, amount, claimed] of sources) {
     if (amount <= 0) continue;
     const px = x * scaleX, py = y * scaleY;
-    const r = 3 + Math.sqrt(amount) * 0.55;
-    ctx.beginPath();
-    ctx.arc(px, py, r, 0, Math.PI * 2);
+    const spread = 2.5 + Math.sqrt(amount) * 0.75;
+    const crumbs = Math.max(3, Math.min(14, Math.round(amount * 0.5)));
+
     ctx.fillStyle = FOOD_COLOR;
-    ctx.globalAlpha = 0.85;
-    ctx.fill();
+    for (let i = 0; i < crumbs; i++) {
+      const a = hash01(x * 7.3 + i * 19.7) * Math.PI * 2;
+      const rr = Math.sqrt(hash01(y * 3.1 + i * 11.3)) * spread;
+      ctx.globalAlpha = 0.65 + hash01(i * 5.9) * 0.35;
+      ctx.beginPath();
+      ctx.arc(px + Math.cos(a) * rr, py + Math.sin(a) * rr,
+              0.9 + hash01(i * 3.3) * 1.0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.globalAlpha = 1;
+
     if (claimed) {
-      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(px, py, spread + 3.5, 0, Math.PI * 2);
       ctx.strokeStyle = CLAIMED_COLOR;
+      ctx.lineWidth = 1.2;
+      ctx.globalAlpha = 0.7;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+// One insect, facing where it is going. Three segments, six legs and a
+// pair of antennae is the least that reads as an ant rather than a dot -
+// and the heading is what makes a crowd of them look like traffic instead
+// of confetti.
+function drawBody(px, py, heading, color, scale) {
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(heading);
+  ctx.scale(scale, scale);
+
+  ctx.strokeStyle = "rgba(0,0,0,0.5)";
+  ctx.lineWidth = 0.9 / scale;
+  ctx.beginPath();
+  for (const [x0, x1, y1] of [[0.9, 2.7, 2.4], [0.3, 0.9, 3.0], [-0.3, -1.5, 2.5]]) {
+    ctx.moveTo(x0, 0); ctx.lineTo(x1, y1);
+    ctx.moveTo(x0, 0); ctx.lineTo(x1, -y1);
+  }
+  ctx.moveTo(2.7, 0); ctx.lineTo(4.7, 1.5);
+  ctx.moveTo(2.7, 0); ctx.lineTo(4.7, -1.5);
+  ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.strokeStyle = "rgba(0,0,0,0.72)";
+  ctx.lineWidth = 0.75 / scale;
+  for (const [cx, rx, ry] of [[-2.4, 2.2, 1.75], [0.3, 1.25, 1.1], [2.5, 1.45, 1.25]]) {
+    ctx.beginPath();
+    ctx.ellipse(cx, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+const ENEMY_SCALE = { PREDATOR: 1.5, RAIDER: 1.0, WARRIOR: 1.1 };
+
+function drawEnemies(enemies, scaleX, scaleY) {
+  for (const [x, y, kind, laden, heading] of enemies) {
+    const px = x * scaleX, py = y * scaleY;
+    drawBody(px, py, heading || 0, ENEMY_COLOR[kind] || ENEMY_COLOR.WARRIOR,
+             ENEMY_SCALE[kind] || 1.0);
+    if (laden) {
+      // Gold ring marks a thief worth chasing - kill it and the food drops.
+      ctx.beginPath();
+      ctx.arc(px, py, 7.5, 0, Math.PI * 2);
+      ctx.strokeStyle = FOOD_COLOR;
+      ctx.lineWidth = 1.4;
       ctx.stroke();
     }
   }
 }
 
-function drawEnemies(enemies, scaleX, scaleY) {
-  for (const [x, y, kind, laden] of enemies) {
-    const px = x * scaleX, py = y * scaleY;
-    ctx.fillStyle = ENEMY_COLOR[kind] || ENEMY_COLOR.WARRIOR;
+// Praetorians draw a touch larger: a handful of fixed guards ringing the
+// queen should be countable at a glance, since that count is what the
+// player is buying.
+const ROLE_SCALE = { PRAETORIAN: 1.2, SOLDIER: 1.1, WORKER: 1.0, SCOUT: 0.92 };
 
-    if (kind === "PREDATOR") {
-      // Bigger diamond: a predator is a single heavy threat, not one of a swarm.
-      ctx.beginPath();
-      ctx.moveTo(px, py - 4.4); ctx.lineTo(px + 4.4, py);
-      ctx.lineTo(px, py + 4.4); ctx.lineTo(px - 4.4, py);
-      ctx.closePath();
-      ctx.fill();
-    } else if (kind === "RAIDER") {
-      ctx.beginPath();
-      ctx.arc(px, py, 2.6, 0, Math.PI * 2);
-      ctx.fill();
-      if (laden) {
-        // Gold ring marks a thief worth chasing - kill it and the food drops.
-        ctx.beginPath();
-        ctx.arc(px, py, 5.0, 0, Math.PI * 2);
-        ctx.strokeStyle = FOOD_COLOR;
-        ctx.lineWidth = 1.6;
-        ctx.stroke();
-      }
-    } else {
-      ctx.beginPath();
-      ctx.arc(px, py, 2.6, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-}
-
-// Ants are the game, so they are drawn large enough to follow individually
-// and ringed in dark so they stay readable on top of a bright trail or a
-// saturated territory cell rather than dissolving into it.
 function drawAnts(ants, scaleX, scaleY) {
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = "rgba(0,0,0,0.62)";
-  for (const [x, y, role, carrying] of ants) {
+  for (const [x, y, role, carrying, heading] of ants) {
     const px = x * scaleX, py = y * scaleY;
-    // Praetorians draw a touch larger: a handful of fixed guards ringing
-    // the queen should be countable at a glance, since that count is
-    // what the player is buying.
-    const r = role === "PRAETORIAN" ? 3.9 : (carrying ? 4.0 : 3.2);
-    ctx.beginPath();
-    ctx.arc(px, py, r, 0, Math.PI * 2);
-    ctx.fillStyle = ROLE_COLOR[role] || "#ffffff";
-    ctx.fill();
-    ctx.stroke();
+    drawBody(px, py, heading || 0, ROLE_COLOR[role] || "#ffffff",
+             ROLE_SCALE[role] || 1.0);
     if (carrying) {
-      // A crumb of food, so a laden forager reads at a glance.
+      // A crumb held out in front, so a laden forager reads at a glance
+      // and the direction of the supply line is visible in the traffic.
+      const h = heading || 0;
       ctx.beginPath();
-      ctx.arc(px, py, 1.7, 0, Math.PI * 2);
+      ctx.arc(px + Math.cos(h) * 5.2, py + Math.sin(h) * 5.2, 1.9, 0, Math.PI * 2);
       ctx.fillStyle = FOOD_COLOR;
       ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.5)";
+      ctx.lineWidth = 0.7;
+      ctx.stroke();
     }
   }
 }
@@ -277,18 +455,20 @@ function render(data) {
   const scaleX = canvas.width / data.world.w;
   const scaleY = canvas.height / data.world.h;
 
-  ctx.fillStyle = "#1a1a19";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const W = canvas.width, H = canvas.height;
+  ctx.drawImage(groundLayer(W, H), 0, 0);
 
   if (layers.terrain && data.terrain) {
-    ctx.drawImage(terrainLayer(data.terrain, canvas.width, canvas.height, scaleX, scaleY), 0, 0);
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(terrainLayer(data.terrain, W, H), 0, 0);
+    ctx.globalAlpha = 1;
   }
-  if (layers.territory) drawTerritory(data.territory, scaleX, scaleY);
+  if (layers.territory) drawTerritory(data.territory, W, H);
   if (layers.trails) {
     const ph = data.pheromones;
     // Ambient explored-area wash first, then supply routes on top of it.
-    drawPheromoneChannel(ph.home, ph.cols, ph.rows, ph.cell, scaleX, scaleY, PHERO_HOME_RGB, 0.12, 2.0);
-    drawPheromoneChannel(ph.food, ph.cols, ph.rows, ph.cell, scaleX, scaleY, PHERO_FOOD_RGB, 0.52, 0.15);
+    drawPheromoneChannel(ph.home, ph.cols, ph.rows, W, H, PHERO_HOME_RGB, 0.09, 2.0);
+    drawPheromoneChannel(ph.food, ph.cols, ph.rows, W, H, PHERO_FOOD_RGB, 0.52, 0.15);
   }
   drawNest(data.nest, scaleX, scaleY);
   drawFoodSources(data.food_sources, scaleX, scaleY);

@@ -11,6 +11,7 @@ Then open: http://127.0.0.1:8765
 """
 from __future__ import annotations
 import json
+import math
 import sys
 import threading
 from collections import deque
@@ -60,6 +61,14 @@ def _garrison(state: GameState) -> dict:
             home += 1
     return {"home": home, "total": total,
             "floor": state.cfg.DIRECTIVE_DEFEND_MIN_GARRISON}
+
+
+def _heading(mover) -> float:
+    """Facing, in radians. Zero when standing still, which reads as
+    "unchanged" rather than snapping east."""
+    if not mover.vx and not mover.vy:
+        return 0.0
+    return round(math.atan2(mover.vy, mover.vx), 3)
 
 
 def _count_kinds(enemies) -> dict:
@@ -128,14 +137,21 @@ def _build_snapshot(state: GameState, paused: bool, save_note: Optional[str] = N
         "enemy_counts": _count_kinds(state.enemies),
         "metrics": dict(colony.metrics),
         # Ants/enemies/food are packed as flat arrays (not objects) to keep
-        # the payload small at ~10 snapshots/sec: [x, y, role, carrying]
+        # the payload small at ~10 snapshots/sec.
+        #
+        # The heading is there so the view can draw something facing the way
+        # it is going. Derived here rather than in the browser because the
+        # array carries no ids: entries shift as ants are born and die, so
+        # a client differencing positions between polls would be reading
+        # one ant's movement off another's.
+        # [x, y, role, carrying, heading]
         "ants": [
-            [a.x, a.y, a.role.value, 1 if a.carrying > 0 else 0]
+            [a.x, a.y, a.role.value, 1 if a.carrying > 0 else 0, _heading(a)]
             for a in colony.ants
         ],
-        # [x, y, kind, carrying_loot]
+        # [x, y, kind, carrying_loot, heading]
         "enemies": [
-            [e.x, e.y, e.kind.value, 1 if e.carrying > 0 else 0]
+            [e.x, e.y, e.kind.value, 1 if e.carrying > 0 else 0, _heading(e)]
             for e in state.enemies
         ],
         "food_sources": [
