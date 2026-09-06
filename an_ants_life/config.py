@@ -59,7 +59,27 @@ class SimConfig:
     # So foragers run in the field, where predators and raiders hunt them
     # for nothing, and hold their ground at home, where dying buys
     # something.
-    ANT_FLEE_ENABLE: bool = True
+    #
+    # Off by default, on the evidence. Over 32 paired seeds at 900s the
+    # mechanic does everything it was built to do and still costs the game:
+    # casualties fall 41% (-37.6 per run, 95% CI [-44.3, -30.2]) and the
+    # standing population rises by about ten ants (+9.9, CI [+4.6, +15.6]),
+    # both real effects, with food throughput unchanged. Survival went
+    # 29/32 to 23/32, and the paired split was 7 seeds where turning this
+    # on killed a colony that otherwise lived against 1 the other way
+    # (p=0.07 - short of the usual bar, but lopsided, and pointing the
+    # same way as an earlier twelve-seed run).
+    #
+    # Which is the trade: a colony that is bigger, better fed and losing
+    # fewer ants, and that dies more often, because the deaths that end
+    # the game are the ones at the queen's chamber and those are exactly
+    # the ones this stops paying for. Survival is the objective;
+    # population and casualty counts are means to it.
+    #
+    # Worth turning back on if nest defence is ever carried by something
+    # other than workers throwing themselves at warriors - the economic
+    # half of this is measured and real.
+    ANT_FLEE_ENABLE: bool = False
     ANT_FLEE_RADIUS: float = 9.0
     ANT_FLEE_STEP: float = 16.0
     ANT_FLEE_HOME_RADIUS: float = 22.0

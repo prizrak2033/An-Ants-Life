@@ -291,6 +291,10 @@ class TestNonCombatantsFlee(unittest.TestCase):
         from enemies.kinds import EnemyKind
         from ants.ant import Ant
         random.seed(1)
+        # Explicitly on. The mechanic ships disabled - it cuts casualties
+        # 41% and still loses colonies - but it is kept working behind the
+        # flag, so these test it rather than the default.
+        over.setdefault("ANT_FLEE_ENABLE", True)
         cfg = SimConfig(ENEMY_ENABLE=False, **over)
         st = GameState(cfg)
         ant = Ant(1, role, cfg.NEST_X + 25.0, cfg.NEST_Y, hp=cfg.ANT_HP_MAX)
