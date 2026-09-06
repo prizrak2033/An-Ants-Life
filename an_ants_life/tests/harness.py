@@ -9,6 +9,7 @@ This is the module every balance number in the README came from.
 """
 from __future__ import annotations
 
+import math
 import os
 import random
 import statistics
@@ -97,11 +98,137 @@ def aggregate(seeds, sim_seconds: float = 300.0, **cfg_over) -> dict:
         "ratio": dps / ups if ups else 0.0,
         "famine_frac": statistics.mean(r["famine_frac"] for r in rows),
         "pop_end_median": statistics.median(r["pop_end"] for r in rows),
+        "pop_end_spread": spread([r["pop_end"] for r in rows]),
         "pop_peak_median": statistics.median(r["pop_peak"] for r in rows),
         "born": sum(r["born"] for r in rows),
         "lost": sum(r["lost"] for r in rows),
         "intercepted": recovered / loot if loot else 0.0,
     }
+
+
+def spread(values) -> dict:
+    """Median plus the range the middle half of the runs fall in.
+
+    A bare median hides how wide the outcomes are, and these outcomes are
+    wide: a colony is a chaotic system, so two runs of the same config on
+    the same seed diverge as soon as anything at all differs between
+    them. Reporting only the middle of that made differences look far
+    firmer than they were.
+    """
+    vals = sorted(values)
+    n = len(vals)
+    if not n:
+        return {"median": 0.0, "lo": 0.0, "hi": 0.0, "n": 0}
+    return {
+        "median": statistics.median(vals),
+        "lo": vals[max(0, int(n * 0.25) - (1 if n % 4 == 0 else 0))],
+        "hi": vals[min(n - 1, int(n * 0.75))],
+        "min": vals[0],
+        "max": vals[-1],
+        "n": n,
+    }
+
+
+def bootstrap_ci(values, iters: int = 4000, alpha: float = 0.05) -> tuple:
+    """Percentile bootstrap interval for the mean, standard library only.
+
+    Assumption-free, which matters here: these distributions are skewed
+    and small, and a normal approximation would promise precision the
+    data does not have. Uses its own Random so it cannot disturb the
+    global stream the simulation is seeded from.
+    """
+    vals = list(values)
+    if len(vals) < 2:
+        return (0.0, 0.0)
+    rng = random.Random(20240906)
+    n = len(vals)
+    means = []
+    for _ in range(iters):
+        means.append(sum(rng.choice(vals) for _ in range(n)) / n)
+    means.sort()
+    return (means[int(iters * alpha / 2)], means[int(iters * (1 - alpha / 2)) - 1])
+
+
+def mcnemar_p(only_a: int, only_b: int) -> float:
+    """Two-sided exact p for a paired binary outcome.
+
+    Survival is paired here - the same seed is run under both configs -
+    so the runs that lived under both, or died under both, carry no
+    information about which config is better. Only the disagreements do.
+    """
+    n = only_a + only_b
+    if n == 0:
+        return 1.0
+    k = min(only_a, only_b)
+    tail = sum(math.comb(n, i) for i in range(0, k + 1)) / (2 ** n)
+    return min(1.0, 2 * tail)
+
+
+def compare(seeds, sim_seconds: float = 900.0, label_a: str = "A",
+            label_b: str = "B", arm_a: dict = None, arm_b: dict = None) -> dict:
+    """Run two configurations over the same seeds and say whether they differ.
+
+    Paired on purpose. Comparing independent samples wastes most of the
+    signal, because the seed decides the map, the food placement and the
+    early enemy draw - differences between two configurations are far
+    smaller than differences between two worlds. Pairing removes the
+    world from the comparison.
+
+    It does not remove everything: once the two arms behave differently
+    they consume the random stream differently and their trajectories
+    part company, so this measures a real effect plus trajectory noise,
+    not a clean difference. That is why the intervals matter.
+    """
+    arm_a = arm_a or {}
+    arm_b = arm_b or {}
+    rows_a = [run(s, sim_seconds, **arm_a) for s in seeds]
+    rows_b = [run(s, sim_seconds, **arm_b) for s in seeds]
+
+    out = {"label_a": label_a, "label_b": label_b, "n": len(seeds),
+           "sim_seconds": sim_seconds, "metrics": {}}
+
+    for key in ("pop_end", "deposits_per_sec", "born", "lost"):
+        deltas = [b[key] - a[key] for a, b in zip(rows_a, rows_b)]
+        lo, hi = bootstrap_ci(deltas)
+        out["metrics"][key] = {
+            "a": spread([r[key] for r in rows_a]),
+            "b": spread([r[key] for r in rows_b]),
+            "mean_delta": statistics.mean(deltas),
+            "ci": (lo, hi),
+            # An interval straddling zero means this many runs cannot
+            # tell the two apart - not that they are the same.
+            "distinguishable": (lo > 0) or (hi < 0),
+        }
+
+    only_a = sum(1 for a, b in zip(rows_a, rows_b) if a["survived"] and not b["survived"])
+    only_b = sum(1 for a, b in zip(rows_a, rows_b) if b["survived"] and not a["survived"])
+    out["survival"] = {
+        "a": sum(1 for r in rows_a if r["survived"]),
+        "b": sum(1 for r in rows_b if r["survived"]),
+        "only_a": only_a,
+        "only_b": only_b,
+        "p": mcnemar_p(only_a, only_b),
+        "distinguishable": mcnemar_p(only_a, only_b) < 0.05,
+    }
+    return out
+
+
+def compare_report(cmp: dict) -> str:
+    a, b, n = cmp["label_a"], cmp["label_b"], cmp["n"]
+    lines = [f"=== {a}  vs  {b}   ({n} paired seeds, {cmp['sim_seconds']:.0f}s) ==="]
+    sv = cmp["survival"]
+    verdict = "DIFFERENT" if sv["distinguishable"] else "not distinguishable"
+    lines.append(f"  survived      {sv['a']}/{n} -> {sv['b']}/{n}   "
+                 f"(disagreed on {sv['only_a'] + sv['only_b']} seeds: "
+                 f"{sv['only_a']} only-{a}, {sv['only_b']} only-{b}; "
+                 f"p={sv['p']:.3f}) {verdict}")
+    for key, m in cmp["metrics"].items():
+        lo, hi = m["ci"]
+        verdict = "DIFFERENT" if m["distinguishable"] else "not distinguishable"
+        lines.append(
+            f"  {key:<17} {m['a']['median']:.2f} -> {m['b']['median']:.2f}   "
+            f"delta {m['mean_delta']:+.2f}  95% CI [{lo:+.2f}, {hi:+.2f}]  {verdict}")
+    return "\n".join(lines)
 
 
 def report(label: str, agg: dict) -> str:
@@ -114,6 +241,8 @@ def report(label: str, agg: dict) -> str:
         f"  ratio         {agg['ratio']:.2f}x",
         f"  famine        {agg['famine_frac'] * 100:.1f}%",
         f"  pop peak/end  {agg['pop_peak_median']:.0f} -> {agg['pop_end_median']:.0f} (median)",
+        f"  pop end range {agg['pop_end_spread']['min']:.0f}-{agg['pop_end_spread']['max']:.0f} "
+        f"(middle half {agg['pop_end_spread']['lo']:.0f}-{agg['pop_end_spread']['hi']:.0f})",
         f"  born/lost     {agg['born']} / {agg['lost']}",
         f"  intercepted   {agg['intercepted'] * 100:.0f}%",
     ])

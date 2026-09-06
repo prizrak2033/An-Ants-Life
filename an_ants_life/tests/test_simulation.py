@@ -387,3 +387,68 @@ class TestNonCombatantsFlee(unittest.TestCase):
         from ants.ai import _flee_point
         self.assertIsNotNone(_flee_point(st, ant, st.cfg),
                              "forager stood and died in open ground")
+
+
+class TestHarnessStatistics(unittest.TestCase):
+    """The reporting has to be able to say "cannot tell".
+
+    A balance decision was very nearly made on a median that moved from
+    22 to 34 between two runs of an identical configuration. Medians
+    alone cannot express that, so these check the tools that can.
+    """
+
+    def test_spread_reports_the_range_not_just_the_middle(self):
+        from tests.harness import spread
+        s = spread([1, 2, 3, 4, 5, 6, 7, 8])
+        self.assertEqual(s["median"], 4.5)
+        self.assertEqual((s["min"], s["max"]), (1, 8))
+        self.assertLess(s["lo"], s["median"])
+        self.assertGreater(s["hi"], s["median"])
+
+    def test_interval_straddles_zero_when_there_is_no_effect(self):
+        from tests.harness import bootstrap_ci
+        lo, hi = bootstrap_ci([-1, 0, 1, -1, 0, 1, 0, 0, 1, -1])
+        self.assertLessEqual(lo, 0.0)
+        self.assertGreaterEqual(hi, 0.0)
+
+    def test_interval_excludes_zero_for_a_real_shift(self):
+        from tests.harness import bootstrap_ci
+        lo, hi = bootstrap_ci([5, 6, 7, 5, 6, 7, 6, 6, 5, 7])
+        self.assertGreater(lo, 0.0)
+
+    def test_interval_is_reproducible(self):
+        """Its own Random, seeded - so a reported interval can be checked
+        later, and so resampling never disturbs the stream the simulation
+        is seeded from."""
+        from tests.harness import bootstrap_ci
+        vals = [3, -1, 4, 1, -5, 9, 2, 6]
+        self.assertEqual(bootstrap_ci(vals), bootstrap_ci(vals))
+        random.seed(99)
+        before = random.random()
+        random.seed(99)
+        bootstrap_ci(vals)
+        self.assertEqual(before, random.random())
+
+    def test_paired_survival_ignores_the_runs_that_agree(self):
+        from tests.harness import mcnemar_p
+        # Runs that live under both configs, or die under both, say
+        # nothing about which config is better.
+        self.assertEqual(mcnemar_p(0, 0), 1.0)
+        # A single disagreement is not evidence.
+        self.assertEqual(mcnemar_p(1, 0), 1.0)
+        # A lopsided pile of them is.
+        self.assertLess(mcnemar_p(8, 0), 0.05)
+        # An even split is not, however many there are.
+        self.assertEqual(mcnemar_p(6, 6), 1.0)
+
+    def test_comparison_is_paired_on_seeds(self):
+        """Both arms must see the same worlds; that is the whole point."""
+        from tests.harness import compare
+        cmp = compare((1, 2), 20.0, label_a="off", label_b="on",
+                      arm_a={"ANT_FLEE_ENABLE": False}, arm_b={})
+        self.assertEqual(cmp["n"], 2)
+        self.assertIn("pop_end", cmp["metrics"])
+        self.assertIn("distinguishable", cmp["survival"])
+        for m in cmp["metrics"].values():
+            lo, hi = m["ci"]
+            self.assertLessEqual(lo, hi)
