@@ -146,13 +146,21 @@ Measured on the shipped configuration, 12 seeds, headless with fixed `dt`
 
 | | 300s | 900s |
 |---|---|---|
-| survived | 12/12 | 10/12 |
-| deposits/sec | 1.719 | 1.243 |
-| food ratio (deposits / upkeep) | 2.17x | 1.65x |
-| time in famine | 0.0% | 0.9% |
-| raid loot intercepted | 50% | 59% |
-| median peak -> end population | 58 -> 54 | 60 -> 42 |
-| births / losses | 386 / 119 | 760 / 644 |
+| survived | 12/12 | 11/12 |
+| deposits/sec | 1.542 | 1.224 |
+| food ratio (deposits / upkeep) | 2.03x | 1.99x |
+| time in famine | 0.9% | 2.4% |
+| raid loot intercepted | 56% | 64% |
+| median peak -> end population | 59 -> 46 | 59 -> 34 |
+| end population, full range (middle half) | 30-59 (38-55) | 10-47 (12-38) |
+| births / losses | 382 / 215 | 1057 / 1087 |
+
+**Read the last row before the one above it.** At 900s the median colony
+ends at 34 ants, and a quarter of them end at 12 or fewer. The median is
+the least interesting number in that column: the spread is the finding.
+A fifteen-minute colony is not reliably anything, and any change measured
+against the median alone is being read off the narrowest part of a very
+wide distribution.
 
 ### Read these numbers with the right confidence
 
@@ -191,10 +199,12 @@ respawn interval rather than the ants.
 
 ### Long-run decay: improved, not closed
 
-The colony no longer hollows out - famine is under 1% and the population
-floor has risen - but it still peaks near 60 and settles in the low 40s, and
-two runs in twelve die at 900s. Births and losses are now close to balanced
-(760 against 644) where they previously ran at a deficit.
+The collapse is gone - one run in twelve dies at 900s now, against four
+before the economy was retuned - but the colony still peaks near 60 and
+falls away, and births and losses are running level (1057 against 1087)
+rather than ahead. The wide end-population spread above is the same story
+told a second way: some colonies hold in the forties, others are down to
+a dozen ants, and the difference is not yet something the player controls.
 
 ## Known gaps
 
