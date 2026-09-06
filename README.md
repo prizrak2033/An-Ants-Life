@@ -107,10 +107,9 @@ independently verified** · **○ not built**
   playstyle) rather than a flat stat bonus — it is neutral when playing at
   home, which is the point.
 - ✅ Recall / rally, standing orders, policy sliders.
-- ◐ Foragers run from threats in the field and stand their ground near the
-  nest. 62% of all casualties were workers and scouts losing fights they
-  cannot win, but their chip damage was also holding the nest up — see
-  Known gaps, this one is not settled.
+- ○ Forager flee behaviour, built and measured and **shipped off**
+  (`ANT_FLEE_ENABLE`). It cuts casualties 41% and loses more colonies; see
+  Known gaps for the numbers and why that is not a contradiction.
 - ◐ Layer toggles and presets for the map overlays.
 
 ### Narrative
@@ -199,25 +198,34 @@ two runs in twelve die at 900s. Births and losses are now close to balanced
 
 ## Known gaps
 
-1. **The forager flee mechanic is unresolved and ships enabled.** Workers and
-   scouts run from threats in the field and hold their ground near the nest
-   (`ANT_FLEE_ENABLE`, `ANT_FLEE_RADIUS`, `ANT_FLEE_HOME_RADIUS`). It flips
-   births ahead of losses and raises the population floor, but it costs food
-   ratio (1.99x -> 1.65x) and raid interception (64% -> 59%), and it did **not**
-   improve survival: 10/12 against a control of 11/12, which is a tie at this
-   sample size. Deciding it properly needs 32+ seeds per arm. Until then it is
-   one flag away from off.
-2. **Attrition is still the binding constraint over long runs.** Food is not:
-   famine is under 1% and the ratio holds above 1.6x. The levers are the
-   casualty rate and `GROWTH_EGG_FOOD_COST`, not regen.
-3. **The harness reports medians with no dispersion**, which is how the noise
-   described under the baseline went unnoticed. Worth fixing before the next
-   tuning decision rests on it.
-4. **Sound has never been heard.** Every level was tuned by offline
+1. **Attrition is the binding constraint, and the flee experiment showed
+   why it is hard.** Foragers were 62% of all casualties, in fights they
+   cannot win, so they were given a flee behaviour (`ANT_FLEE_ENABLE`,
+   default **off**). Over 32 paired seeds at 900s it did everything it was
+   designed to do: casualties fell 41% (−37.6 per run, 95% CI [−44.3,
+   −30.2]), standing population rose about ten ants (+9.9, CI [+4.6,
+   +15.6]), food throughput unchanged. Survival went 29/32 → 23/32, on a
+   paired split of 7 seeds where enabling it killed a colony that
+   otherwise lived against 1 the other way (p=0.07 — short of the usual
+   bar, but lopsided and matching an earlier twelve-seed run).
+
+   The trade is the finding: a colony that is bigger, better fed and
+   losing fewer ants dies *more often*, because the deaths that end the
+   game happen at the queen's chamber and those are exactly the ones the
+   mechanic stops paying for. Any future work on attrition has to keep
+   nest defence intact, or carry it with something other than workers
+   throwing themselves at warriors — and if it does, the economic half of
+   this is measured, real, and one flag away.
+
+2. **Food is not the constraint.** Famine is under 1% and the ratio holds
+   above 1.6x. The levers are the casualty rate and `GROWTH_EGG_FOOD_COST`,
+   not regen.
+3. **Sound has never been heard.** Every level was tuned by offline
    measurement in a container with no audio device.
-5. **Visual readability is unconfirmed.** Overlays once hid the ants entirely;
-   toggles, presets and larger outlined ants were added in response, but the
-   result has not been confirmed by eye.
+4. **The visuals have had one pass, not a verdict.** Ants are drawn as
+   oriented bodies, the field layers are smooth rather than tiled, and the
+   palette is warm; that was checked against screenshots at each step. Nobody
+   has actually played it, so readability in motion is still unconfirmed.
 
 ## Where things live
 
