@@ -213,42 +213,55 @@ a dozen ants, and the difference is not yet something the player controls.
 
 ## Known gaps
 
-1. **Playing the game does not measurably change the outcome.** This is
-   the one that matters, and it was measured rather than guessed. Two
-   scripted players (`tests/bots.py`) over 24 paired seeds at 900s — one
-   that watches, one that marks food, recalls under siege and leans the
-   caste mix with pressure:
+1. **The tools are as likely to hurt as to help.** This is the finding
+   the project turns on, and it took two experiments to state properly.
+
+   Two scripted players (`tests/bots.py`) — one that watches, one that
+   marks food, recalls under siege and leans the caste mix with pressure —
+   paired on the same seeds. First at the shipped difficulty, then at a
+   spawn rate where outcomes are genuinely uncertain:
 
    ```
-   survived      22/24 -> 24/24   (2 disagreements, both pro-attentive, p=0.50)
-   pop_end       25.00 -> 26.00   +2.50  CI [-4.75, +9.83]   not distinguishable
-   deposits/sec   1.21 ->  1.15   -0.01  CI [-0.10, +0.09]   not distinguishable
-   born          89.00 -> 84.00   -1.25  CI [-9.17, +7.88]   not distinguishable
-   lost          93.00 -> 90.00   -3.75  CI [-9.79, +3.08]   not distinguishable
-   actions            0 passive, 856 attentive
+   shipped  (spawn 0.135, 24 seeds)   22/24 -> 24/24    2 disagreements   p=0.50
+   harder   (spawn 0.165, 40 seeds)   27/40 -> 27/40   16 disagreements   p=1.00
+                                                       (8 only-passive, 8 only-attentive)
    ```
 
-   856 deliberate orders, about 36 a colony, and nothing moves. Survival
-   leans the right way — both disagreements favour the attentive arm —
-   but 2-0 is the best split two discordant pairs can produce and still
-   only reaches p=0.50.
+   **Read the disagreement count, not the totals.** The first result was
+   unfalsifiable: at 92% passive survival there were two discordant pairs,
+   and McNemar could not have returned significance however good the
+   attentive arm was. The second is properly powered — 16 discordant
+   pairs, where a 13-3 split would reach p=0.02 — and it splits exactly
+   8 and 8.
 
-   The cause is upstream of the tools: **there are no stakes, so there
-   can be no agency.** Passive play survives 22 of 24 runs, and a player
-   cannot save a colony that was never going to die. This also retires
-   the older "passive 6/12 against attentive 8/12" figure, which was
-   measured on a much earlier build; the gap closed because passive play
-   got better, not because attention got worse.
+   So the actions are not inert. Across 40 runs, 1501 orders flipped
+   sixteen colonies between living and dying: eight saved, eight killed.
+   Every continuous metric straddles zero too (end population -1.15, CI
+   [-6.03, +4.12]).
 
-   The next experiment is therefore about difficulty, not balance: raise
-   enemy pressure until passive survival sits somewhere genuinely
-   uncertain, then re-run this same comparison. If attention moves the
-   needle there, the tools are fine and the difficulty was wrong. If it
-   still does not, the tools are the problem, and that is a design job.
+   This also refutes the obvious explanation. The first null looked like a
+   difficulty ceiling - nothing at stake, so nothing to affect - so the
+   stakes were moved to a coin flip. The null got *stronger*. Difficulty
+   was not the problem.
 
-   Caveat worth keeping: this measures one scripted policy, not skilled
-   human play, and the intervals are about +-7 ants wide, so a small real
-   effect would hide.
+   The cause is that every tool is a real trade made blind. A forage mark
+   recruits ants to a pile stigmergy would probably have found, and takes
+   them off other work. Recall buys defence by stopping foraging outright:
+   right during a siege, wrong otherwise, and nothing says which is
+   happening in time to act. The caste sliders duplicate what
+   `auto_defense` already does from border pressure. Nothing in the
+   interface tells the player which side of any of those trades they are
+   on, and a blind trade is a coin flip.
+
+   The work this implies is not more tools or more tuning: it is making
+   the existing calls **decidable**. Warning before a siege, so recall has
+   a knowable right moment. Food that is genuinely hard to find, so a mark
+   contributes information the colony does not already have. Levers
+   without a signal are not agency.
+
+   Caveat: this measures one scripted policy, not skilled human judgment,
+   and the intervals run to several ants. But the bot's heuristics are the
+   obvious ones, and 8-8 says its timing is no better than chance.
 
 2. **Nest defence is not currently failing**, which is a correction to
    what this file used to say. "Every colony death is the queen lost with
