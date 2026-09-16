@@ -39,7 +39,10 @@ Standard library only, like the rest of the project. The audio suite starts
 its own server and drives a real browser; it skips itself when playwright or
 Chromium is unavailable. `tests/harness.py` is the measurement tool the
 balance work runs on — use it for any tuning change rather than reasoning
-about the config.
+about the config. `tests/bots.py` adds two scripted players for measuring
+whether a change makes *playing* matter; both are held to what the interface
+shows and to `server.apply_player_action`, so a result from them is a
+statement about a person rather than about an oracle.
 
 CI runs the fast tier on every push and pull request
 (`.github/workflows/tests.yml`). The slow balance tier is opt-in: it runs on
@@ -100,16 +103,18 @@ independently verified** · **○ not built**
   more than `DIRECTIVE_RECRUIT_CAP`. Deliberately writes no pheromone, so a
   mark cannot become a self-reinforcing trail.
 - ✅ Guaranteed nest garrison floor. Without it the defend directive drained
-  the nest and the queen died with zero defenders — which is how *every*
-  measured colony death happens.
+  the nest and the queen died with zero defenders, which was then how every
+  measured colony death happened. It is not any more — see Known gaps — but
+  the floor is part of why.
 - ✅ Praetorian guard caste, promoted from soldiers, leashed to the queen.
   Validated as a strategic unlock (4/12 → 8/12 survival for a forward-army
   playstyle) rather than a flat stat bonus — it is neutral when playing at
   home, which is the point.
 - ✅ Recall / rally, standing orders, policy sliders.
 - ○ Forager flee behaviour, built and measured and **shipped off**
-  (`ANT_FLEE_ENABLE`). It cuts casualties 41% and loses more colonies; see
-  Known gaps for the numbers and why that is not a contradiction.
+  (`ANT_FLEE_ENABLE`). It cuts casualties 41% and lost more colonies over 32
+  paired seeds (29/32 -> 23/32, p=0.07). Kept behind the flag: the economic
+  half is real and measured.
 - ◐ Layer toggles and presets for the map overlays.
 
 ### Narrative
@@ -208,31 +213,59 @@ a dozen ants, and the difference is not yet something the player controls.
 
 ## Known gaps
 
-1. **Attrition is the binding constraint, and the flee experiment showed
-   why it is hard.** Foragers were 62% of all casualties, in fights they
-   cannot win, so they were given a flee behaviour (`ANT_FLEE_ENABLE`,
-   default **off**). Over 32 paired seeds at 900s it did everything it was
-   designed to do: casualties fell 41% (−37.6 per run, 95% CI [−44.3,
-   −30.2]), standing population rose about ten ants (+9.9, CI [+4.6,
-   +15.6]), food throughput unchanged. Survival went 29/32 → 23/32, on a
-   paired split of 7 seeds where enabling it killed a colony that
-   otherwise lived against 1 the other way (p=0.07 — short of the usual
-   bar, but lopsided and matching an earlier twelve-seed run).
+1. **Playing the game does not measurably change the outcome.** This is
+   the one that matters, and it was measured rather than guessed. Two
+   scripted players (`tests/bots.py`) over 24 paired seeds at 900s — one
+   that watches, one that marks food, recalls under siege and leans the
+   caste mix with pressure:
 
-   The trade is the finding: a colony that is bigger, better fed and
-   losing fewer ants dies *more often*, because the deaths that end the
-   game happen at the queen's chamber and those are exactly the ones the
-   mechanic stops paying for. Any future work on attrition has to keep
-   nest defence intact, or carry it with something other than workers
-   throwing themselves at warriors — and if it does, the economic half of
-   this is measured, real, and one flag away.
+   ```
+   survived      22/24 -> 24/24   (2 disagreements, both pro-attentive, p=0.50)
+   pop_end       25.00 -> 26.00   +2.50  CI [-4.75, +9.83]   not distinguishable
+   deposits/sec   1.21 ->  1.15   -0.01  CI [-0.10, +0.09]   not distinguishable
+   born          89.00 -> 84.00   -1.25  CI [-9.17, +7.88]   not distinguishable
+   lost          93.00 -> 90.00   -3.75  CI [-9.79, +3.08]   not distinguishable
+   actions            0 passive, 856 attentive
+   ```
 
-2. **Food is not the constraint.** Famine is under 1% and the ratio holds
-   above 1.6x. The levers are the casualty rate and `GROWTH_EGG_FOOD_COST`,
-   not regen.
-3. **Sound has never been heard.** Every level was tuned by offline
+   856 deliberate orders, about 36 a colony, and nothing moves. Survival
+   leans the right way — both disagreements favour the attentive arm —
+   but 2-0 is the best split two discordant pairs can produce and still
+   only reaches p=0.50.
+
+   The cause is upstream of the tools: **there are no stakes, so there
+   can be no agency.** Passive play survives 22 of 24 runs, and a player
+   cannot save a colony that was never going to die. This also retires
+   the older "passive 6/12 against attentive 8/12" figure, which was
+   measured on a much earlier build; the gap closed because passive play
+   got better, not because attention got worse.
+
+   The next experiment is therefore about difficulty, not balance: raise
+   enemy pressure until passive survival sits somewhere genuinely
+   uncertain, then re-run this same comparison. If attention moves the
+   needle there, the tools are fine and the difficulty was wrong. If it
+   still does not, the tools are the problem, and that is a design job.
+
+   Caveat worth keeping: this measures one scripted policy, not skilled
+   human play, and the intervals are about +-7 ants wide, so a small real
+   effect would hide.
+
+2. **Nest defence is not currently failing**, which is a correction to
+   what this file used to say. "Every colony death is the queen lost with
+   the garrison at zero" was true of a much older build and has been
+   carried forward too long. Measured now over 10 runs at 900s: the queen
+   is struck at all in 2, the praetorian guard reaches full strength
+   inside two minutes, and when it is depleted it rebuilds in 6 of 7
+   cases. The single run where the guard collapsed to zero was also the
+   single run that died — which is suggestive, and is one data point.
+
+3. **Food is not the constraint.** Famine is under 1% and the ratio holds
+   above 1.6x.
+
+4. **Sound has never been heard.** Every level was tuned by offline
    measurement in a container with no audio device.
-4. **The visuals have had one pass, not a verdict.** Ants are drawn as
+
+5. **The visuals have had one pass, not a verdict.** Ants are drawn as
    oriented bodies, the field layers are smooth rather than tiled, and the
    palette is warm; that was checked against screenshots at each step. Nobody
    has actually played it, so readability in motion is still unconfirmed.
