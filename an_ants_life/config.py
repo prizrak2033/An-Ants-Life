@@ -204,17 +204,22 @@ class SimConfig:
     # play, not more: a colony already losing ground gets buried faster,
     # which is a spiral rather than a challenge.
     ENEMY_SPAWN_PRESSURE_MULT: float = 1.0
-    # Retuned against the corrected 26% soldier baseline. Once the caste
-    # default stopped being a trap, passive play survived 11 of 12 runs
-    # and there was simply no room left for attention to matter - some of
-    # the old difficulty had been resting on the bad default rather than
-    # on the enemies.
+    # This does nothing at the shipped spawn rate, and saying so is more
+    # useful than the tuning story that used to sit here. Caps of 6, 7 and
+    # 8 were measured over the same 8 seeds at 900s and returned identical
+    # results - same survivors, same median population, same range - which
+    # means the cap never binds: spawns arrive slowly enough that six are
+    # never alive at once. Enemy pressure is set by
+    # ENEMY_BASE_SPAWN_CHANCE_PER_SEC alone.
     #
-    # At six concurrent and this spawn rate, passive play sits at 6/12
-    # while attentive play (recall during a siege, plus forage marks)
-    # reaches 8/12 with 16% more food. Pushing further was tested and
-    # rejected: at seven concurrent with pressure feedback, survival fell
-    # to 1/8 regardless of play, which is not difficulty but noise.
+    # It is kept as a ceiling against a much higher spawn rate, not as a
+    # difficulty dial. Turning it up will not make the game harder.
+    #
+    # The figures that used to be quoted here - passive 6/12 against
+    # attentive 8/12, and a collapse to 1/8 at seven concurrent - were
+    # measured on a build several rounds of fixes ago and no longer hold.
+    # Passive play now survives 11 of 12 at these settings and attention
+    # is not distinguishable from it; see the README's Known gaps.
     ENEMY_MAX_ALIVE: int = 6
 
     # Spawn mix. Warriors stay the most common threat so nest defence
