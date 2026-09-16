@@ -98,6 +98,84 @@ def _audio_config(cfg: SimConfig) -> dict:
     return {"levels": levels, "events": events}
 
 
+# ---------- player actions ----------
+#
+# These live at module level, not on the runner, so that anything driving
+# the game drives it the same way. A scripted player that reached into
+# GameState directly would be measuring an oracle rather than a player:
+# it could do things no one holding the interface can do, and any result
+# about how much play matters would be worth nothing.
+
+def _place(state: GameState, cfg: SimConfig, cmd: dict) -> None:
+    kind = DirectiveKind(str(cmd["kind"]).upper())
+    x = min(max(0.0, float(cmd["x"])), float(cfg.WORLD_W))
+    y = min(max(0.0, float(cmd["y"])), float(cfg.WORLD_H))
+    state.directives.place(kind, x, y, state.t)
+    state.history.emit(
+        state.t, state.tick, EventKind.DIRECTIVE_PLACED,
+        {"kind": kind.value, "x": round(x, 1), "y": round(y, 1)},
+        cause="player_order", tags=["directive"]
+    )
+
+
+def _set_policy(state: GameState, cfg: SimConfig, cmd: dict) -> None:
+    scout = cmd.get("scout")
+    soldier = cmd.get("soldier")
+    state.policy.set_targets(
+        cfg,
+        None if scout is None else float(scout),
+        None if soldier is None else float(soldier),
+    )
+    if cmd.get("auto_defense") is not None:
+        state.policy.auto_defense = bool(cmd["auto_defense"])
+    if cmd.get("praetorian") is not None:
+        state.policy.set_praetorian_target(cfg, int(cmd["praetorian"]))
+    state.history.emit(
+        state.t, state.tick, EventKind.POLICY_CHANGED,
+        {"text": (f"Standing orders change: {state.policy.soldier_target:.0%} soldiers, "
+                  f"{state.policy.scout_target:.0%} scouts, "
+                  f"{state.policy.praetorian_target} praetorians."),
+         "scout": state.policy.scout_target,
+         "soldier": state.policy.soldier_target,
+         "auto_defense": state.policy.auto_defense},
+        cause="player_order", tags=["policy"]
+    )
+
+
+def _set_rally(state: GameState, cfg: SimConfig, on: bool) -> None:
+    if state.policy.rally == on:
+        return
+    state.policy.rally = on
+    state.history.emit(
+        state.t, state.tick,
+        EventKind.RALLY_CALLED if on else EventKind.RALLY_ENDED,
+        {}, cause="player_order", tags=["rally"]
+    )
+
+
+def apply_player_action(state: GameState, cfg: SimConfig, cmd: dict) -> bool:
+    """Apply one in-world command. True if it was recognised.
+
+    This is the complete set of things a player can do to the colony.
+    Pausing, saving and restarting act on the runner rather than the
+    world and stay with it.
+    """
+    action = cmd.get("action")
+    if action == "place_directive":
+        _place(state, cfg, cmd)
+    elif action == "remove_directive":
+        state.directives.remove(int(cmd["id"]))
+    elif action == "clear_directives":
+        state.directives.clear()
+    elif action == "set_policy":
+        _set_policy(state, cfg, cmd)
+    elif action == "set_rally":
+        _set_rally(state, cfg, bool(cmd.get("on")))
+    else:
+        return False
+    return True
+
+
 def _build_snapshot(state: GameState, paused: bool, save_note: Optional[str] = None) -> dict:
     cfg = state.cfg
     colony = state.colony
@@ -283,60 +361,9 @@ class SimRunner:
             self._load(str(cmd.get("name") or "autosave"))
         elif action == "delete_save":
             self.store.delete_save(str(cmd.get("name") or ""))
-        elif action == "place_directive":
-            self._place(state, cmd)
-        elif action == "remove_directive":
-            state.directives.remove(int(cmd["id"]))
-        elif action == "clear_directives":
-            state.directives.clear()
-        elif action == "set_policy":
-            self._set_policy(state, cmd)
-        elif action == "set_rally":
-            self._set_rally(state, bool(cmd.get("on")))
-
-    def _place(self, state: GameState, cmd: dict) -> None:
-        kind = DirectiveKind(str(cmd["kind"]).upper())
-        x = min(max(0.0, float(cmd["x"])), float(self.cfg.WORLD_W))
-        y = min(max(0.0, float(cmd["y"])), float(self.cfg.WORLD_H))
-        state.directives.place(kind, x, y, state.t)
-        state.history.emit(
-            state.t, state.tick, EventKind.DIRECTIVE_PLACED,
-            {"kind": kind.value, "x": round(x, 1), "y": round(y, 1)},
-            cause="player_order", tags=["directive"]
-        )
-
-    def _set_policy(self, state: GameState, cmd: dict) -> None:
-        scout = cmd.get("scout")
-        soldier = cmd.get("soldier")
-        state.policy.set_targets(
-            self.cfg,
-            None if scout is None else float(scout),
-            None if soldier is None else float(soldier),
-        )
-        if cmd.get("auto_defense") is not None:
-            state.policy.auto_defense = bool(cmd["auto_defense"])
-        if cmd.get("praetorian") is not None:
-            state.policy.set_praetorian_target(self.cfg, int(cmd["praetorian"]))
-        state.history.emit(
-            state.t, state.tick, EventKind.POLICY_CHANGED,
-            {"text": (f"Standing orders change: {state.policy.soldier_target:.0%} soldiers, "
-                      f"{state.policy.scout_target:.0%} scouts, "
-                      f"{state.policy.praetorian_target} praetorians."),
-             "scout": state.policy.scout_target,
-             "soldier": state.policy.soldier_target,
-             "auto_defense": state.policy.auto_defense},
-            cause="player_order", tags=["policy"]
-        )
-
-    def _set_rally(self, state: GameState, on: bool) -> None:
-        if state.policy.rally == on:
-            return
-        state.policy.rally = on
-        state.history.emit(
-            state.t, state.tick,
-            EventKind.RALLY_CALLED if on else EventKind.RALLY_ENDED,
-            {}, cause="player_order", tags=["rally"]
-        )
+        else:
+            # Everything that acts on the world rather than on the runner.
+            apply_player_action(state, cfg, cmd)
 
     def _reset_save_cycle(self) -> None:
         self._next_autosave_t = self.state.t + self.cfg.AUTOSAVE_EVERY_SECONDS

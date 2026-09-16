@@ -183,8 +183,17 @@ def compare(seeds, sim_seconds: float = 900.0, label_a: str = "A",
     arm_b = arm_b or {}
     rows_a = [run(s, sim_seconds, **arm_a) for s in seeds]
     rows_b = [run(s, sim_seconds, **arm_b) for s in seeds]
+    return compare_rows(rows_a, rows_b, label_a, label_b, sim_seconds)
 
-    out = {"label_a": label_a, "label_b": label_b, "n": len(seeds),
+
+def compare_rows(rows_a, rows_b, label_a: str, label_b: str,
+                 sim_seconds: float) -> dict:
+    """The statistics half of a paired comparison, over rows already run.
+
+    Split out so that arms which are not just config overrides - two
+    scripted players, say - get the same treatment as arms that are.
+    """
+    out = {"label_a": label_a, "label_b": label_b, "n": len(rows_a),
            "sim_seconds": sim_seconds, "metrics": {}}
 
     for key in ("pop_end", "deposits_per_sec", "born", "lost"):
