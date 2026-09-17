@@ -57,6 +57,18 @@ _TERRAIN_BY_CODE = {
 # fresh one and, because SimConfig is frozen and therefore hashable,
 # unhashable as well. Stripped on read too, not just skipped on write,
 # so any save already carrying the field is handled.
+
+
+# Per-tick scratch values that live in `colony.emergency` but are not
+# state: every one is recomputed from scratch on the next tick, and two
+# of them are frozensets, which JSON cannot represent at all. Saving them
+# was silently fine only while `defend_detachment` went unset unless a
+# directive happened to be on the board.
+_TRANSIENT_EMERGENCY = frozenset({
+    "defend_detachment", "alarm_responders", "alarm_calls",
+})
+
+
 def _is_persisted(name: str) -> bool:
     return not name.startswith("AUDIO_")
 
@@ -159,6 +171,10 @@ def dump_state(state: GameState) -> Dict[str, Any]:
             "food": [{"id": s.id, "x": s.x, "y": s.y, "amount": s.amount,
                       "claimed": s.claimed} for s in state.world.food_sources],
         },
+        # Alarm is deliberately absent. It is a signal about what is
+        # happening at this instant, decays to nothing in about two
+        # seconds, and would be describing a fight that ended before the
+        # save was written. It rebuilds itself the moment anything is hit.
         "pheromones": {
             "food": _flat(state.pheromones.grids["food"]),
             "home": _flat(state.pheromones.grids["home"]),
@@ -175,7 +191,8 @@ def dump_state(state: GameState) -> Dict[str, Any]:
             "queen": {"x": colony.queen.x, "y": colony.queen.y,
                       "hp": colony.queen.hp, "hp_max": colony.queen.hp_max},
             "works": list(colony.works),
-            "emergency": colony.emergency,
+            "emergency": {k: v for k, v in colony.emergency.items()
+                          if k not in _TRANSIENT_EMERGENCY},
             "metrics": colony.metrics,
             "ants": [_ant_to_dict(a) for a in colony.ants],
         },
