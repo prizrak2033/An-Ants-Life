@@ -160,7 +160,27 @@ class SimConfig:
     # 41% and lost colonies doing it, because worker chip damage was
     # holding the nest up. Alarm is the opposite trade: the worker stays
     # and fights, and something comes to it.
-    ALARM_ENABLE: bool = True
+    #
+    # SHIPPED OFF, and the mechanic is not the reason. It does exactly
+    # what it was built to do - over 8 runs at 900s non-combatant deaths
+    # fall 515 -> 429 and fighter deaths rise 361 -> 383, a net 7% fewer
+    # casualties, which is the trade it was designed to make.
+    #
+    # It loses anyway, because of a job nobody knew the guard was doing.
+    # Deliveries fall 1049 -> 876 and raiders get away with nearly twice
+    # as much food, 9.0 -> 16.9 per run: a soldier that darts off to
+    # answer a call is not in position to run down a laden thief, and
+    # SOLDIER_RECOVERY_RADIUS interception turns out to be worth more
+    # than the workers the call saves. Over 32 paired seeds the only
+    # effect reaching significance is that the colony feeds itself worse
+    # (deposits/sec -0.11, CI [-0.20, -0.01]); population, births and
+    # survival all move the wrong way and none of them significantly.
+    #
+    # Tightening the radius does not rescue it. Inside COMBAT_SCAN_RADIUS
+    # a soldier already sees the fight, so a radius small enough to keep
+    # it home is a radius that changes nothing. Kept working behind the
+    # flag because the measurement is worth more than the code.
+    ALARM_ENABLE: bool = False
     # Laid by any ant that takes a hit, at the place it was hit.
     ALARM_DEPOSIT_AMOUNT: float = 2.0
     # Set from the timings, not by feel. An ant moves at ANT_SPEED 40, so

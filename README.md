@@ -347,32 +347,55 @@ a dozen ants, and the difference is not yet something the player controls.
    actually binding, in the units it is measured in.** Slowing a thing
    does not reduce a rate that is not expressed in distance.
 
-3. **The colony has no alarm. Workers die alone and cannot call for
-   help.** Measured over 8 runs at 900s, 813 deaths:
+3. **The alarm channel works and loses anyway, because of a job nobody
+   knew the guard was doing.** Workers had no way to say they were in
+   trouble. Measured over 8 runs at 900s, non-combatants were 59% of all
+   casualties and 91.2% of them died with no fighter inside soldier scan
+   radius, a median 37.7 from the nearest ant that could have helped;
+   fighters died in company, median 1.9, only 2.1% alone.
+
+   So a third scent channel was built: laid where an ant is hit, read as
+   a place rather than a gradient, answered only by soldiers the garrison
+   floor can spare. **It does exactly what it was designed to do.**
 
    ```
-   non-combatants  479 deaths (59% of all)
-     median distance to nearest fighter        37.7
-     died with no fighter within scan radius   91.2%
-
-   fighters        334 deaths (41% of all)
-     median distance to nearest fighter         1.9
-     died with no fighter within scan radius    2.1%
+                      non-combatant    fighter    total   deposits   stolen
+   alarm off                    515        361      876       1049      9.0
+   alarm on                     429        383      812        876     16.9
    ```
 
-   Soldiers die in company; workers die by themselves, a third of the map
-   away from the nearest ant that could have helped. The colony carries
-   food scent and home scent and nothing else, so a worker under attack
-   has no way to tell anyone it is happening.
+   Non-combatant deaths fall 17%, fighter deaths rise 6%, total
+   casualties fall 7% - the exact trade intended. And over 32 paired
+   seeds the only effect that reaches significance is that the colony
+   **feeds itself worse**: deposits/sec -0.11, CI [-0.20, -0.01].
+   Population 16.5 -> 12.5, births 95 -> 88.5, survival 25/32 -> 23/32,
+   none of them significant and all of them the wrong way.
 
-   This is the same 59%-of-casualties problem the flee mechanic attacked
-   from the wrong end. Flee removed the worker from the fight; it cut
-   casualties 41% and lost colonies (29/32 -> 23/32), because the chip
-   damage workers deal was holding the nest up. An alarm channel is the
-   opposite trade: the worker stays and fights, and something comes to
-   it. Untested - see the sequenced plan in the session notes before
-   building it, and measure whether soldiers leaving their posts costs
-   more than the workers it saves.
+   The cause is in the last column. Raiders get away with nearly twice as
+   much food, because a soldier that darts off to answer a call is not in
+   position to run down a laden thief. `SOLDIER_RECOVERY_RADIUS`
+   interception was quietly worth more than the workers the call saves,
+   and nothing in the design accounted for it.
+
+   Tightening the radius does not rescue it: inside `COMBAT_SCAN_RADIUS`
+   a soldier already sees the fight, so a radius small enough to keep it
+   home is a radius that changes nothing. Shipped off behind
+   `ALARM_ENABLE`, kept working, ten tests still covering it.
+
+   **This is the fourth intervention to fail the same way**, and the
+   pattern is now the finding. Directives, recall, forager flee and the
+   alarm all *redistribute effort the colony is already spending*, and
+   every one of them costs throughput and returns nothing measurable.
+   The two things that have ever worked - the nursery, and the works pair
+   - changed a rule instead of moving ants around. Flee and alarm are the
+   sharpest pair, because they are the same idea in opposite directions:
+   pull a worker out of a fight, or send a soldier into one. Both lose,
+   and both lose to a job the colony was quietly already doing well.
+
+   One caveat on the diagnostic: the "soldier-ticks spent answering"
+   figure counts how many soldiers were *eligible* to answer each tick,
+   not how many were travelling, so it overstates activity and is not
+   quoted here.
 
 4. **Nest defence is not currently failing**, which is a correction to
    what this file used to say. "Every colony death is the queen lost with

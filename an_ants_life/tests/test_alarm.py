@@ -26,6 +26,10 @@ from systems.directives import update_directives
 
 def _colony(n_soldiers, **over):
     random.seed(11)
+    # Explicitly on. The channel ships disabled - it cuts casualties 7%
+    # and costs 16% of the colony's food - but it is kept working behind
+    # the flag, so these test it rather than the default.
+    over.setdefault("ALARM_ENABLE", True)
     cfg = SimConfig(ENEMY_ENABLE=False, **over)
     st = GameState(cfg)
     st.colony.ants.clear()
@@ -91,7 +95,7 @@ class TestTheSignal(unittest.TestCase):
         from enemies.enemy import make_enemy
         from enemies.kinds import EnemyKind
         random.seed(3)
-        cfg = SimConfig(ENEMY_ENABLE=False)
+        cfg = SimConfig(ENEMY_ENABLE=False, ALARM_ENABLE=True)
         st = GameState(cfg)
         st.colony.ants.clear()
         x, y = 50.0, 40.0
@@ -107,7 +111,7 @@ class TestTheSignal(unittest.TestCase):
         to still be audible when the answer arrives or the channel is
         decorative."""
         import math
-        cfg = SimConfig()
+        cfg = SimConfig(ALARM_ENABLE=True)
         crossing = cfg.ALARM_ANSWER_RADIUS / cfg.ANT_SPEED
         st = GameState(cfg)
         pos = (50.0, 40.0)
