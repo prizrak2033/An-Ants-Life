@@ -20,6 +20,11 @@ def _amt(ev: HistoryEvent, key: str = "amt") -> str:
 
 _KIND_ARTICLE = {"WARRIOR": "A warrior", "RAIDER": "A raider", "PREDATOR": "A predator"}
 
+_WORK_LINES = {
+    "nursery": "The nursery is dug out. Every egg from here costs the colony less.",
+    "rampart": "Earthworks rise around the nest. The approach is broken ground now.",
+}
+
 
 def _enemy_name(ev: HistoryEvent) -> str:
     return _KIND_ARTICLE.get(ev.data.get("kind", ""), "An intruder")
@@ -44,13 +49,12 @@ _PHRASINGS: Dict[str, Callable[[HistoryEvent], str]] = {
 
     EventKind.ENEMY_SPAWN:
         lambda e: f"{_enemy_name(e)} crosses onto colony ground.",
+    EventKind.WORK_BUILT:
+        lambda e: _WORK_LINES.get(
+            e.data.get("work"), "The colony finishes its work."),
     # The two loudest lines in the chronicle, and the only warning the
     # colony gets that is worth acting on: a band gathering at the border
     # is the one threat slow enough to answer.
-    EventKind.WORK_BUILT:
-        lambda e: ("The nursery is dug out. Every egg from here costs the colony less."
-                   if e.data.get("work") == "nursery"
-                   else "Earthworks rise around the nest. The approach is broken ground now."),
     EventKind.ASSAULT_MUSTERING:
         lambda e: (f"A war band is massing at the border — {_amt(e, 'size')} warriors, "
                    f"gathering to attack."),
