@@ -709,18 +709,113 @@ function renderPolicy(data) {
   rally.classList.toggle("active", !!p.rally);
 }
 
-// What each work buys, in the terms the HUD already uses. Written out
-// rather than derived, because a price with no stated effect is not a
-// decision - it is a button.
+// Every piece of explanatory copy in the game lives in this one table,
+// keyed by element id or by a data attribute, and is applied on load.
+// It was scattered across three title attributes and seven hint spans,
+// which is how the wording drifted into describing what the code does
+// rather than what the player should do.
+//
+// House style, three beats: what it is in the world, what it costs you,
+// when it is the right call. The third beat is the one that matters -
+// without it a player has to work out the game's arithmetic for
+// themselves, and the whole point of a tooltip is that they should not
+// have to. No percentages and no internal terms; prices stay visible
+// because the player spends them, everything else becomes consequence.
+const TOOLTIPS = {
+  // -- the decisions that otherwise punish you silently ---------------
+  "work:nursery":
+    "The queen's brood chambers, widened and tended. Every egg she lays "
+    + "from now on takes less to raise. It pays back a little on every ant "
+    + "you will ever have, so it pays back most if you dig it early.",
+  "work:garden":
+    "Waste hauled down to a fungus bed the colony farms. Every ant eats "
+    + "less, for good. A small colony has few mouths to save on - this is "
+    + "worth most once yours is already large.",
+  "rally-btn":
+    "Sound the alarm. Every ant drops what it is carrying and comes home. "
+    + "Nothing is gathered while it lasts, so call it for a real attack "
+    + "and not a stray raider.",
+
+  // -- directives -----------------------------------------------------
+  "tool:FORAGE":
+    "Word goes out that there is food here. Idle workers nearby will "
+    + "answer - never the whole colony, and never ants already carrying.",
+  "tool:DEFEND":
+    "Part of the guard moves to hold this ground. Some always stay with "
+    + "the queen, whatever you ask.",
+  "tool:EXPLORE":
+    "Scouts will work this stretch instead of wandering. Use it to find "
+    + "food you have not stumbled onto yet.",
+  "tool:none":
+    "Watch without giving orders. Click a mark on the map to lift it.",
+  "clear-directives": "Lift every mark you have placed on the map.",
+
+  // -- standing orders ------------------------------------------------
+  "soldier-slider":
+    "How many of the next generation are raised to fight. It will not "
+    + "change the ants you already have. Soldiers do not forage, so a "
+    + "larger army is a smaller harvest.",
+  "scout-slider":
+    "How many of the next generation range out looking for new ground. "
+    + "Scouts find the next meal but carry little of it home.",
+  "praetorian-slider":
+    "Soldiers who have bled for the queen and stay at her side. They "
+    + "never leave her chamber - not for a mark, not for a recall - and "
+    + "they never forage.",
+  "auto-defense":
+    "Let the colony raise more soldiers on its own as the borders come "
+    + "under pressure. Turn it off to hold your own mix.",
+
+  // -- readouts, which had no hover text at all ------------------------
+  "v-capacity":
+    "How many ants this land can feed year-round. Above the line the "
+    + "colony is living off what it has already stored.",
+  "v-food": "What is in the larder right now.",
+  "v-garrison": "Soldiers standing over the queen, and the fewest she is ever left with.",
+  "v-queenhp": "The queen's health. Lose her and the colony ends.",
+  "v-hunger": "How far the larder has fallen short of what the colony needs.",
+  "v-stress": "How hard a time the colony is having, all told. It settles when things are quiet.",
+  "v-pressure": "How hard the borders are being pushed. Intruders come more often as it rises.",
+
+  // -- everything else -------------------------------------------------
+  "sound-btn": "Colony ambience and the sounds of things happening.",
+  "volume-slider": "Volume.",
+  "pause-btn": "Stop time. The colony waits exactly as it is.",
+  "restart-btn": "Abandon this colony and begin a new one elsewhere.",
+  "layers-ants-only": "Strip the map back to the ants themselves.",
+  "layers-all": "Show every layer of the map again.",
+  "layer:terrain": "The ground itself - litter, sand, rock and water.",
+  "layer:territory": "Which ground is held by the colony and which by its enemies.",
+  "layer:trails": "The scent trails the colony lays between food and home.",
+  "layer:directives": "The marks you have placed.",
+  "save-name": "A name to remember this colony by.",
+  "save-btn": "Set this colony down to return to later.",
+  "save-picker": "Colonies you have set down.",
+  "load-btn": "Take up the chosen colony where you left it.",
+  "delete-save-btn": "Forget the chosen colony for good.",
+};
+
+// Applied once. Anything already carrying a title keeps whatever the
+// table says, so this file is the single source for wording.
+function applyTooltips() {
+  for (const [key, text] of Object.entries(TOOLTIPS)) {
+    const [kind, val] = key.includes(":") ? key.split(":") : [null, null];
+    const nodes = kind
+      ? document.querySelectorAll(`[data-${kind}="${val}"]`)
+      : [document.getElementById(key)].filter(Boolean);
+    for (const n of nodes) n.title = text;
+  }
+  // The readouts sit in rows; hovering the label should work too.
+  for (const id of ["v-capacity", "v-food", "v-garrison", "v-queenhp",
+                    "v-hunger", "v-stress", "v-pressure"]) {
+    const v = document.getElementById(id);
+    if (v && v.parentElement) v.parentElement.title = TOOLTIPS[id];
+  }
+}
+
 const WORK_LABEL = {
   nursery: "Nursery",
   garden: "Fungus garden",
-};
-const WORK_DETAIL = {
-  // Both raise the food ceiling; the difference is which half of the
-  // fraction they raise it by, and that is the whole decision.
-  nursery: "Every egg costs a third less, for the rest of the colony's life. Cheaper to replace what you lose.",
-  garden: "Every ant eats a fifth less, for the rest of the colony's life. Worth more the more ants there are to feed.",
 };
 
 function updateWorks(data) {
@@ -740,11 +835,14 @@ function updateWorks(data) {
     b.classList.toggle("built", have);
     b.classList.toggle("ready", !have && afford);
     b.disabled = have || !afford;
+    // The standing description, with the colony's own situation in front
+    // of it - what it costs, or how far off it still is.
+    const about = TOOLTIPS[`work:${key}`];
     b.title = have
-      ? `Built. ${WORK_DETAIL[key]}`
+      ? `Dug and finished. ${about}`
       : (afford
-        ? `${Math.round(cost)} food, spent now. ${WORK_DETAIL[key]}`
-        : `${Math.round(cost)} food — ${Math.ceil(cost - food)} short. ${WORK_DETAIL[key]}`);
+        ? `${Math.round(cost)} food, spent the moment you ask. ${about}`
+        : `${Math.round(cost)} food — ${Math.ceil(cost - food)} short for now. ${about}`);
   }
 
   const outstanding = Object.keys(works.costs || {}).filter((w) => !built.has(w));
@@ -957,10 +1055,13 @@ async function send(payload) {
 
 // Says what a directive actually does, since none of them command ants
 // directly and that is easy to misread as the tool having failed.
+// The strip under the toolbar says the same thing the button's hover
+// does, so it reads from the one table rather than a second copy that
+// can drift out of step with it.
 const TOOL_DETAIL = {
-  FORAGE: "Recruits nearby idle workers, up to a limit — not the whole colony.",
-  DEFEND: "Up to half the guard patrols here; the rest hold the nest.",
-  EXPLORE: "Scouts range around here instead of home.",
+  FORAGE: TOOLTIPS["tool:FORAGE"],
+  DEFEND: TOOLTIPS["tool:DEFEND"],
+  EXPLORE: TOOLTIPS["tool:EXPLORE"],
   none: "",
 };
 
@@ -1145,6 +1246,7 @@ volumeSlider.addEventListener("input", () => {
   audio.setVolume(Number(volumeSlider.value) / 100);
 });
 
+applyTooltips();
 setTool("none");
 poll();
 setInterval(poll, 120);

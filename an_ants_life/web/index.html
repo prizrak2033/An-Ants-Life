@@ -435,10 +435,10 @@
     <span id="colony-name"></span>
     <span class="tick" id="tick-readout">tick 0 · t 0.0s</span>
     <div class="spacer"></div>
-    <button id="sound-btn" title="Colony ambience and event sounds">Sound off</button>
+    <button id="sound-btn">Sound off</button>
     <input type="range" id="volume-slider" min="0" max="100" value="60"
-           title="Volume" style="width:80px; accent-color: var(--food); display:none">
-    <button id="rally-btn" title="Recall every ant to the nest. Foraging stops.">Recall</button>
+           style="width:80px; accent-color: var(--food); display:none">
+    <button id="rally-btn">Recall</button>
     <button id="pause-btn">Pause</button>
     <button id="restart-btn">Restart</button>
   </header>
@@ -449,7 +449,7 @@
     <button class="tool" data-tool="FORAGE">Forage</button>
     <button class="tool" data-tool="DEFEND">Defend</button>
     <button class="tool" data-tool="EXPLORE">Explore</button>
-    <span id="tool-hint">Pick a directive, then click the map. Click a mark to remove it.</span>
+    <span id="tool-hint">Choose an order, then click the map to give it. Click a mark to lift it.</span>
     <span id="tool-detail"></span>
     <div class="spacer"></div>
     <button id="clear-directives">Clear all</button>
@@ -459,7 +459,7 @@
     <span class="tool-label">Works</span>
     <button class="work" data-work="nursery"></button>
     <button class="work" data-work="garden"></button>
-    <span id="works-hint">Food spent here is gone for good. The colony opens with 40, so the first is a wait and the second a longer one.</span>
+    <span id="works-hint">Food spent here is gone for good. You will not have enough for both at first — choose what your colony needs soonest.</span>
     <div class="spacer"></div>
     <span id="works-larder"></span>
   </div>
@@ -525,7 +525,7 @@
           <span class="value" id="v-capacity">0 / 0</span>
         </div>
         <div class="bar-track"><div class="bar-fill" id="bar-capacity" style="background:var(--good)"></div></div>
-        <div class="policy-note" id="capacity-note">Ants the current food income can carry.</div>
+        <div class="policy-note" id="capacity-note">How many ants this land can feed year-round.</div>
 
         <div class="row"><span class="label">Food store</span><span class="value" id="v-food">0</span></div>
         <div class="row">
@@ -565,13 +565,13 @@
         <div class="slider-row">
           <div class="head"><span class="label">Praetorian guard</span><span class="value" id="v-praetorian-target">3</span></div>
           <input type="range" id="praetorian-slider" min="0" max="6" value="3">
-          <div class="policy-note">Soldiers who fight off an intruder in the queen's chamber are
-            promoted, up to this many. They never leave her — not for a mark, a thief, or a recall —
-            and they never forage.</div>
+          <div class="policy-note">Soldiers who have bled for the queen in her own chamber are
+            raised to her guard, up to this many. They never leave her — not for a mark, a thief,
+            or a recall — and they never forage.</div>
         </div>
-        <div class="policy-note">Targets shape which caste the queen raises next, not existing ants.
-          Soldiers are what keep the queen alive — but they don't forage, so
-          every point here is food the colony won't gather.</div>
+        <div class="policy-note">These shape the brood the queen raises next, not the ants you
+          already have. Soldiers are what keep her alive — but they never forage, so every point
+          here is food the colony will not gather.</div>
       </div>
 
       <div class="panel">
