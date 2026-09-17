@@ -242,7 +242,7 @@ class BuilderBot(Bot):
     # player watching the larder would do.
     RESERVE = 40.0
 
-    def __init__(self, order=("nursery", "rampart"), name=None):
+    def __init__(self, order=("nursery", "garden"), name=None):
         self.order = tuple(order)
         self.name = name or f"build-{'-'.join(self.order)}"
 

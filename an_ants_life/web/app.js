@@ -714,11 +714,13 @@ function renderPolicy(data) {
 // decision - it is a button.
 const WORK_LABEL = {
   nursery: "Nursery",
-  rampart: "Rampart",
+  garden: "Fungus garden",
 };
 const WORK_DETAIL = {
-  nursery: "Every egg costs a third less, for the rest of the colony's life. Raises the food ceiling.",
-  rampart: "Intruders crossing the ground around the nest move at little over half speed. The guard gets more swings before they reach the queen.",
+  // Both raise the food ceiling; the difference is which half of the
+  // fraction they raise it by, and that is the whole decision.
+  nursery: "Every egg costs a third less, for the rest of the colony's life. Cheaper to replace what you lose.",
+  garden: "Every ant eats a fifth less, for the rest of the colony's life. Cheaper to keep what you have.",
 };
 
 function updateWorks(data) {

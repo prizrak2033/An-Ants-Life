@@ -156,7 +156,7 @@ def _set_rally(state: GameState, cfg: SimConfig, on: bool) -> bool:
     return True
 
 
-WORK_COSTS = {"nursery": "BUILD_NURSERY_COST", "rampart": "BUILD_RAMPART_COST"}
+WORK_COSTS = {"nursery": "BUILD_NURSERY_COST", "garden": "BUILD_GARDEN_COST"}
 
 
 def work_cost(cfg: SimConfig, work: str) -> Optional[float]:

@@ -6,6 +6,17 @@ level, which decays naturally over time.
 from __future__ import annotations
 
 
+def upkeep_per_ant(state) -> float:
+    """What one ant costs to keep, per second. A fungus garden stretches
+    the same forage further, which is the one term in the size equation
+    no ant can affect and nothing else in the game touches."""
+    cfg = state.cfg
+    rate = cfg.FOOD_UPKEEP_PER_ANT_PER_SEC
+    if "garden" in state.colony.works:
+        rate *= (1.0 - cfg.BUILD_GARDEN_UPKEEP_CUT)
+    return rate
+
+
 def _update_carrying_capacity(state, cfg, colony, population: int, dt: float) -> None:
     """Two separate readings, because conflating them is a trap.
 
@@ -34,7 +45,7 @@ def _update_carrying_capacity(state, cfg, colony, population: int, dt: float) ->
     income += (rate - income) * smoothing
     colony.emergency["income_per_sec"] = income
 
-    upkeep_each = max(1e-9, cfg.FOOD_UPKEEP_PER_ANT_PER_SEC)
+    upkeep_each = max(1e-9, upkeep_per_ant(state))
     upkeep = population * upkeep_each
     colony.emergency["upkeep_per_sec"] = upkeep
     colony.emergency["food_balance"] = income - upkeep
@@ -58,10 +69,15 @@ def update_stress(state, dt: float) -> None:
     colony = state.colony
 
     population = len(colony.ants)
-    upkeep = population * cfg.FOOD_UPKEEP_PER_ANT_PER_SEC * dt
+    each = upkeep_per_ant(state)
+    upkeep = population * each * dt
     colony.food_store = max(0.0, colony.food_store - upkeep)
 
-    reserve_target = max(1.0, population * cfg.FOOD_UPKEEP_PER_ANT_PER_SEC * cfg.FOOD_RESERVE_BUFFER_SEC)
+    # The reserve target follows the discount too. It is denominated in
+    # seconds of upkeep, so leaving it on the undiscounted rate would
+    # quietly hold back a buffer the colony no longer needs, and cancel
+    # part of what the garden just bought.
+    reserve_target = max(1.0, population * each * cfg.FOOD_RESERVE_BUFFER_SEC)
     hunger = max(0.0, min(1.0, 1.0 - colony.food_store / reserve_target))
     colony.emergency["hunger"] = hunger
     colony.emergency["food_reserve_target"] = reserve_target

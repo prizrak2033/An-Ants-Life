@@ -286,12 +286,31 @@ a dozen ants, and the difference is not yet something the player controls.
    attacking a term the colony cannot touch for itself: the price of an
    egg. That is exactly the mechanism gap 1 predicted.
 
-   The rampart does nothing measurable, alone or added on top of the
-   nursery. It fails for the same reason the first three experiments
-   failed: **it reinforces something the colony is already good at.** Nest
-   defence is not failing (gap 3), so buying more of it buys nothing. It
-   is left in and left honest rather than quietly removed, because it is
-   the clearest example in the project of the trap.
+   The rampart did nothing measurable, alone or added on top of the
+   nursery, and has since been replaced.
+
+   **The first explanation given here for that was wrong**, and is left
+   recorded because the correction is the useful part. It said the
+   rampart defended ground where losses do not happen. Measuring where
+   ants actually die — 1337 deaths over 12 runs at 900s — refutes that:
+   the median death is 26.7 units from the nest and **44% of all deaths
+   fall inside the rampart's own 20-unit ring**. It was covering nearly
+   half the casualties and still moved nothing.
+
+   The likelier mechanism is one that should have been reasoned through
+   before building it. The rampart changed **movement**, but ants die in
+   **combat exchanges**, and the exchange rate is set by
+   `COMBAT_COOLDOWN_SECONDS`, not by how fast an enemy walks. A slowed
+   intruder trades blows at exactly the same rate and simply does so for
+   longer, inside the zone where ants are densest — so the attacks the
+   garrison gains and the extra exposure it pays for roughly cancel.
+   Losses 107.5 → 101.5, interval straddling zero, is what that looks
+   like.
+
+   The transferable lesson is not the one first written here. It is: **a
+   work has to attack the term that is actually binding, in the units it
+   is measured in.** Slowing a thing does not reduce a rate that is not
+   expressed in distance.
 
    Two things this does **not** establish. Survival is not distinguishable
    in any arm — colonies get bigger, not more likely to live, and the

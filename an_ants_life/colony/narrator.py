@@ -22,7 +22,7 @@ _KIND_ARTICLE = {"WARRIOR": "A warrior", "RAIDER": "A raider", "PREDATOR": "A pr
 
 _WORK_LINES = {
     "nursery": "The nursery is dug out. Every egg from here costs the colony less.",
-    "rampart": "Earthworks rise around the nest. The approach is broken ground now.",
+    "garden": "A fungus garden takes in the colony's waste. The same forage will feed more mouths.",
 }
 
 

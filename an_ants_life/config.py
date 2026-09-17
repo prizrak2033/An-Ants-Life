@@ -362,10 +362,26 @@ class SimConfig:
     #
     #   P = (regen - GROWTH_EGG_FOOD_COST * loss_rate) / FOOD_UPKEEP_PER_ANT_PER_SEC
     #
-    # A nursery lowers the cost of every future ant. A rampart lowers the
-    # rate at which they are lost. Neither tells a single ant what to do,
-    # and no ant could decide to build either, because an ant only sees
-    # what is in front of it.
+    # A nursery lowers the numerator's second term: what every future ant
+    # costs to make. A fungus garden lowers the denominator: what every
+    # ant costs to keep. Neither tells a single ant what to do, and no ant
+    # could decide to build either, because an ant only sees what is in
+    # front of it.
+    #
+    # Deliberately the two halves of the same fraction, because that is
+    # what makes the choice a choice rather than a ranking. The nursery
+    # pays per birth, so it is worth most where attrition is high and the
+    # colony is constantly replacing itself. The garden pays per ant per
+    # second, so it is worth most where a colony is large and lives long.
+    # Which world a given seed is depends on the map.
+    #
+    # The work replaced here was a rampart, which slowed intruders near
+    # the nest and measured completely inert. It changed movement, but
+    # ants die in combat exchanges, and the exchange rate is set by
+    # COMBAT_COOLDOWN_SECONDS rather than by how fast an enemy walks - so
+    # a slowed intruder trades blows just as often and lingers longer
+    # where ants are densest. See README, Known gaps 2; the lesson is
+    # kept there because it cost 96 runs and one wrong diagnosis.
     #
     # The costs are close to each other and well above the opening store of
     # 40, so the first one is always a stretch of foraging the player chose
@@ -380,25 +396,19 @@ class SimConfig:
     # combat losses was measured at roughly three quarters of everything
     # the world produces.
     BUILD_NURSERY_EGG_DISCOUNT: float = 0.34
-    BUILD_RAMPART_COST: float = 55.0
-    # Earthworks around the nest. Intruders inside this ring are slowed,
-    # which was meant to hand the garrison more attacks before contact and
-    # cut the losses that drive the replacement bill.
+    BUILD_GARDEN_COST: float = 55.0
+    # Ants farming fungus on the colony's waste, which stretches the same
+    # forage further. Every ant costs this much less to keep, forever.
     #
-    # MEASURED INERT. 32 paired seeds at 900s: alone it moves end
-    # population +2.03 (CI [-5.38, +9.16]) and survival 25/32 -> 26/32
-    # (p=1.00); added on top of a nursery it moves nothing either. Losses
-    # drop 107.5 -> 101.5 and that interval straddles zero too.
+    # 0.20 is chosen so the two works land on nearly the same ceiling by
+    # different routes, which is what makes them comparable rather than
+    # ranked. The readout is regen * allowance / upkeep_each, and the
+    # model has been predictive to within a point:
     #
-    # It fails for the same reason the first three agency experiments
-    # failed: it reinforces something the colony is already good at. Nest
-    # defence is not failing, so buying more of it buys nothing. Kept and
-    # documented rather than quietly deleted, because it is the clearest
-    # worked example in this file of that trap. Tuning these two numbers
-    # is not the fix - a work has to attack a term the colony cannot
-    # already handle, the way the nursery attacks the price of an egg.
-    BUILD_RAMPART_RADIUS: float = 20.0
-    BUILD_RAMPART_SLOW: float = 0.55
+    #   plain      1.0 * 0.55  / 0.015  = 36.7   (observed 37)
+    #   nursery    1.0 * 0.703 / 0.015  = 46.9   (observed 47)
+    #   garden     1.0 * 0.55  / 0.012  = 45.8
+    BUILD_GARDEN_UPKEEP_CUT: float = 0.20
 
     # Economy
     #
