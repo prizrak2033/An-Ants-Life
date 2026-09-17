@@ -480,11 +480,31 @@ function drawAssault(assault, scaleX, scaleY) {
     : `${assault.size} INBOUND`;
   ctx.font = "600 13px ui-sans-serif, system-ui, sans-serif";
   ctx.textAlign = "center";
+
+  // Held inside the canvas. A band always musters on the border, so an
+  // unclamped label puts the game's only actionable warning half off
+  // the edge every single time - which is exactly how it first shipped,
+  // and only visible by looking at it rather than by testing it.
+  const half = ctx.measureText(label).width / 2 + 6;
+  const lx = Math.min(Math.max(px, half), canvas.width - half);
+  const ly = Math.max(py - 34, 16);
+
   ctx.lineWidth = 3;
   ctx.strokeStyle = "rgba(0,0,0,0.75)";
-  ctx.strokeText(label, px, py - 34);
+  ctx.strokeText(label, lx, ly);
   ctx.fillStyle = `rgba(255,214,206,${0.85 + pulse * 0.15})`;
-  ctx.fillText(label, px, py - 34);
+  ctx.fillText(label, lx, ly);
+
+  // A tick back to the ring when the label had to be pulled inward, so
+  // the count still reads as belonging to that band.
+  if (Math.abs(lx - px) > 2) {
+    ctx.strokeStyle = `rgba(${hue},0.5)`;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(lx, ly + 5);
+    ctx.lineTo(px, py - 26);
+    ctx.stroke();
+  }
   ctx.textAlign = "start";
 }
 
