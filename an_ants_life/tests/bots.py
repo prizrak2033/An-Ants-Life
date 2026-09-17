@@ -117,6 +117,10 @@ class AttentiveBot(Bot):
     decide_every = 2.0
 
     ANSWER_MUSTER_WITHIN = 6.0   # seconds before a band advances
+    # A warrior has 3 HP and a soldier deals 3, so a defender is worth
+    # roughly a warrior. Answer only when the band is close to matching
+    # the garrison actually standing at the nest.
+    OUTMATCHED_RATIO = 0.8
     SIEGE_RADIUS = 20.0          # warriors this close are on the queen
     LIFT_SIEGE_RADIUS = 30.0     # hysteresis, so rally does not flicker
     MARK_MIN_DIST = 24.0         # near food needs no help finding
@@ -142,11 +146,18 @@ class AttentiveBot(Bot):
                     if e[2] == "WARRIOR" and math.hypot(e[0] - nx, e[1] - ny) <= radius]
 
         # A band about to advance, or already on its way, is answered
-        # before it arrives. Reacting to warriors already at the nest is
-        # what made recall worthless: they cross the last twenty units in
-        # under a second and the order lands after the fighting.
-        band_coming = (view.massing and view.massing_seconds <= self.ANSWER_MUSTER_WITHIN) \
-            or view.inbound > 0
+        # before it arrives - but only if the garrison cannot take it.
+        # The warning reports the band's size precisely so that call can
+        # be made, and recalling for every band is how this policy first
+        # went wrong: halting the whole economy for a fight roughly 18
+        # soldiers were going to win anyway cost 14 births a run to save
+        # 12.7 casualties, and six colonies with it.
+        band = 0
+        if view.massing and view.massing_seconds <= self.ANSWER_MUSTER_WITHIN:
+            band = view.massing
+        elif view.inbound > 0:
+            band = view.inbound
+        band_coming = band > 0 and band >= view.garrison_home * self.OUTMATCHED_RATIO
 
         # Rally stops foraging outright, so it is worth it only when the
         # nest is both threatened and short of defenders - which is the
