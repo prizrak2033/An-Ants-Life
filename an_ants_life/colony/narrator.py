@@ -44,6 +44,15 @@ _PHRASINGS: Dict[str, Callable[[HistoryEvent], str]] = {
 
     EventKind.ENEMY_SPAWN:
         lambda e: f"{_enemy_name(e)} crosses onto colony ground.",
+    # The two loudest lines in the chronicle, and the only warning the
+    # colony gets that is worth acting on: a band gathering at the border
+    # is the one threat slow enough to answer.
+    EventKind.ASSAULT_MUSTERING:
+        lambda e: (f"A war band is massing at the border — {_amt(e, 'size')} warriors, "
+                   f"gathering to attack."),
+    EventKind.ASSAULT_ADVANCING:
+        lambda e: (f"The war band is moving. {_amt(e, 'size')} warriors are coming for "
+                   f"the nest."),
     EventKind.ENEMY_KILL:
         lambda e: f"{_enemy_name(e)} is cut down.",
     EventKind.ENEMY_DEATH:

@@ -222,6 +222,51 @@ class SimConfig:
     # is not distinguishable from it; see the README's Known gaps.
     ENEMY_MAX_ALIVE: int = 6
 
+    # Assault waves.
+    #
+    # The trickle above never produces a siege. Measured over 455 warriors
+    # at the shipped spawn rate, 86% walked through the 22-unit garrison
+    # ring and 0.4% reached the queen: they arrive one at a time, die
+    # around 15 units out, and the whole exchange is over in a second or
+    # two. There was nothing for the player's recall to answer, which is
+    # why using it was a coin flip - it costs foraging and defends against
+    # an event that resolves before the order can land.
+    #
+    # A war band is the event that was missing. Several warriors arrive at
+    # one point on the border and MUSTER there in the open before
+    # advancing together. The muster is the whole design: it is a threat
+    # you can see forming, far enough out to be worth answering, and it
+    # lasts long enough for recalled ants to actually get home. Recall is
+    # slower than a lone warrior by an order of magnitude, so the window
+    # has to be built into the threat rather than signalled afterwards.
+    #
+    # Bands ignore ENEMY_MAX_ALIVE. That cap limits the trickle, and was
+    # measured to never bind anyway; an assault is supposed to exceed
+    # ordinary pressure.
+    # Off until the scale is right. As first built - bands of 4 to 6 - it
+    # was measured over 6 seeds at 900s against the same seeds with it
+    # off, and it added attrition without adding stakes: zero of 176 band
+    # warriors reached the queen, survival and queen hits were unchanged
+    # at 1/6 and 20, and median end population halved from 34 to 17.
+    #
+    # The arithmetic says why, and it should have been checked first. A
+    # band of five is about 15 HP of warrior against roughly 18 soldiers
+    # doing 3 damage each; it is outnumbered three to one before it
+    # starts, and it arrives already reduced because ants pick musterers
+    # off at the border. It was never going to be a siege.
+    #
+    # The shape is right and the scale is not. Band size is being swept
+    # against whether bands actually reach the queen; this turns on when
+    # a size is found that threatens her without simply killing the
+    # colony outright.
+    ASSAULT_ENABLE: bool = False
+    ASSAULT_FIRST_AT_SECONDS: float = 120.0
+    ASSAULT_INTERVAL_SECONDS: float = 150.0
+    ASSAULT_MIN_SIZE: int = 4
+    ASSAULT_MAX_SIZE: int = 6
+    ASSAULT_MUSTER_SECONDS: float = 12.0
+    ASSAULT_MUSTER_SPREAD: float = 5.0
+
     # Spawn mix. Warriors stay the most common threat so nest defence
     # remains the baseline concern; predators are rare because they are
     # individually expensive to deal with.

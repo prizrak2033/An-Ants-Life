@@ -32,6 +32,11 @@ class Enemy:
     spawn_x: float = 0.0
     spawn_y: float = 0.0
 
+    # Assault bands: which wave this belongs to (0 = arrived alone), and
+    # how long it holds at the muster point before advancing.
+    band: int = 0
+    muster_until_t: float = -1.0
+
     # Raiders only: seconds spent loading up, food in hand, and whether
     # they've turned for the edge.
     steal_progress: float = 0.0

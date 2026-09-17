@@ -93,6 +93,58 @@ def _pick_kind(cfg) -> EnemyKind:
     )[0]
 
 
+def _maybe_assault(state, cfg, dt: float) -> None:
+    """Send a war band, if one is due.
+
+    Several warriors arrive at one point on the border and hold there
+    before advancing together. The holding is the point: a lone warrior
+    crosses from the edge and is dead or at the queen inside a couple of
+    seconds, which is far quicker than a recall can bring anyone home, so
+    the window a player needs has to be part of the threat rather than a
+    notice about it.
+    """
+    if not cfg.ASSAULT_ENABLE:
+        return
+    em = state.colony.emergency
+    due = em.get("next_assault_t")
+    if due is None:
+        due = cfg.ASSAULT_FIRST_AT_SECONDS
+        em["next_assault_t"] = due
+    if state.t < due:
+        return
+
+    point = _spawn_point(state, cfg)
+    if point is None:
+        em["next_assault_t"] = state.t + 5.0   # border walled off here; retry
+        return
+
+    mx, my = point
+    size = random.randint(cfg.ASSAULT_MIN_SIZE, cfg.ASSAULT_MAX_SIZE)
+    band = int(em.get("assault_band", 0)) + 1
+    em["assault_band"] = band
+    muster_until = state.t + cfg.ASSAULT_MUSTER_SECONDS
+
+    # Bands ignore ENEMY_MAX_ALIVE on purpose: that cap limits the
+    # trickle, and an assault is meant to exceed ordinary pressure.
+    for _ in range(size):
+        ex = min(max(0.0, mx + random.uniform(-1, 1) * cfg.ASSAULT_MUSTER_SPREAD), cfg.WORLD_W)
+        ey = min(max(0.0, my + random.uniform(-1, 1) * cfg.ASSAULT_MUSTER_SPREAD), cfg.WORLD_H)
+        e = make_enemy(cfg, state._next_enemy_id, EnemyKind.WARRIOR, ex, ey)
+        state._next_enemy_id += 1
+        e.band = band
+        e.muster_until_t = muster_until
+        state.enemies.append(e)
+
+    em["next_assault_t"] = state.t + cfg.ASSAULT_INTERVAL_SECONDS
+    state.history.emit(
+        state.t, state.tick, EventKind.ASSAULT_MUSTERING,
+        {"size": size, "x": round(mx, 1), "y": round(my, 1),
+         "seconds": round(cfg.ASSAULT_MUSTER_SECONDS, 1)},
+        cause="war_band", impact={"assault_size": size},
+        tags=["enemy", "assault"]
+    )
+
+
 def update_enemies(state, dt: float) -> None:
     cfg = state.cfg
     if not cfg.ENEMY_ENABLE:
@@ -118,7 +170,27 @@ def update_enemies(state, dt: float) -> None:
             tags=["enemy"]
         )
 
+    _maybe_assault(state, cfg, dt)
+
+    announced = state.colony.emergency.setdefault("assault_advanced", [])
     for enemy in state.enemies:
+        # A mustering band stands in the open at the border until its
+        # hold expires, then moves as one.
+        if enemy.band and enemy.muster_until_t > 0.0:
+            if state.t < enemy.muster_until_t:
+                enemy.vx = enemy.vy = 0.0
+                continue
+            enemy.muster_until_t = -1.0
+            if enemy.band not in announced:
+                announced.append(enemy.band)
+                still = sum(1 for o in state.enemies if o.band == enemy.band and o.hp > 0)
+                state.history.emit(
+                    state.t, state.tick, EventKind.ASSAULT_ADVANCING,
+                    {"size": still, "band": enemy.band},
+                    cause="war_band", impact={"assault_size": still},
+                    tags=["enemy", "assault"]
+                )
+
         if enemy.kind == EnemyKind.RAIDER:
             _update_raider(state, cfg, enemy, dt)
         elif enemy.kind == EnemyKind.PREDATOR:

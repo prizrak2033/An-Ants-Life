@@ -105,6 +105,7 @@ def _enemy_to_dict(e: Enemy) -> Dict[str, Any]:
             "speed": e.speed, "atk": e.atk, "terr_influence": e.terr_influence,
             "vx": e.vx, "vy": e.vy, "last_combat_t": e.last_combat_t,
             "detour_until_t": e.detour_until_t, "detour_side": e.detour_side,
+            "band": e.band, "muster_until_t": e.muster_until_t,
             "spawn_x": e.spawn_x, "spawn_y": e.spawn_y,
             "steal_progress": e.steal_progress, "carrying": e.carrying,
             "fleeing": e.fleeing, "escaped": e.escaped}
@@ -117,6 +118,8 @@ def _enemy_from_dict(d: Dict[str, Any]) -> Enemy:
     e.last_combat_t = d.get("last_combat_t", -1e18)
     e.detour_until_t = d.get("detour_until_t", -1.0)
     e.detour_side = d.get("detour_side", 1)
+    e.band = d.get("band", 0)
+    e.muster_until_t = d.get("muster_until_t", -1.0)
     e.spawn_x, e.spawn_y = d.get("spawn_x", e.x), d.get("spawn_y", e.y)
     e.steal_progress = d.get("steal_progress", 0.0)
     e.carrying = d.get("carrying", 0.0)
