@@ -44,7 +44,7 @@ class TestEveryControlExplainsItself(unittest.TestCase):
 
     def test_every_data_driven_control_is_covered(self):
         keys = {k for k in re.findall(r'^\s*"([^"]+)":', JS, re.M)}
-        for attr in ("tool", "layer", "work"):
+        for attr in ("tool", "layer", "work", "speed"):
             for val in set(re.findall(rf'data-{attr}="([^"]+)"', HTML)):
                 self.assertIn(f"{attr}:{val}", keys,
                               f"{attr} '{val}' has no tooltip")
@@ -98,3 +98,25 @@ class TestVoice(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStartingTheGame(unittest.TestCase):
+    """The first thing anyone runs, including a friend trying it cold.
+
+    `python3 -m server --port 8731` used to die on int() with a
+    traceback, which is a poor greeting.
+    """
+
+    def test_every_reasonable_way_of_asking_for_a_port_works(self):
+        from server import parse_port, DEFAULT_PORT
+        self.assertEqual(parse_port([]), DEFAULT_PORT)
+        for argv in (["8731"], ["--port", "8731"], ["-p", "8731"], ["--port=8731"]):
+            self.assertEqual(parse_port(argv), 8731, argv)
+
+    def test_a_bad_port_explains_itself_instead_of_crashing(self):
+        from server import parse_port
+        for argv in (["abc"], ["99999"], ["0"], ["--port"]):
+            with self.assertRaises(SystemExit) as caught:
+                parse_port(argv)
+            self.assertTrue(str(caught.exception).strip(),
+                            f"{argv} exited with no explanation")

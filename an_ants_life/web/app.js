@@ -781,6 +781,9 @@ const TOOLTIPS = {
   "sound-btn": "Colony ambience and the sounds of things happening.",
   "volume-slider": "Volume.",
   "pause-btn": "Stop time. The colony waits exactly as it is.",
+  "speed:1": "Watch at the colony's own pace.",
+  "speed:2": "Twice as fast. A colony's whole life runs in about seven minutes.",
+  "speed:4": "Four times as fast, for watching a colony rise and fall in one sitting.",
   "restart-btn": "Abandon this colony and begin a new one elsewhere.",
   "layers-ants-only": "Strip the map back to the ants themselves.",
   "layers-all": "Show every layer of the map again.",
@@ -817,6 +820,12 @@ const WORK_LABEL = {
   nursery: "Nursery",
   garden: "Fungus garden",
 };
+
+function updateSpeed(data) {
+  for (const b of document.querySelectorAll("button.speed[data-speed]")) {
+    b.classList.toggle("active", Number(b.dataset.speed) === (data.speed || 1));
+  }
+}
 
 function updateWorks(data) {
   const works = data.works;
@@ -973,6 +982,7 @@ async function poll() {
     render(data);
     updateSidebar(data);
     updateWorks(data);
+    updateSpeed(data);
     audio.update(data);
     playNewEvents(data);
   } catch (err) {
@@ -1143,6 +1153,10 @@ for (const b of document.querySelectorAll("button.work[data-work]")) {
     if (b.disabled) return;
     send({ action: "build", work: b.dataset.work });
   });
+}
+
+for (const b of document.querySelectorAll("button.speed[data-speed]")) {
+  b.addEventListener("click", () => send({ action: "set_speed", speed: Number(b.dataset.speed) }));
 }
 
 document.getElementById("rally-btn").addEventListener("click", () => {

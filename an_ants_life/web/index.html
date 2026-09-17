@@ -96,6 +96,14 @@
     color: var(--ink-muted);
     font-weight: 600;
   }
+  .speed-group { display: inline-flex; gap: 4px; }
+  button.speed { padding: 6px 9px; font-variant-numeric: tabular-nums; }
+  button.speed.active {
+    background: var(--food);
+    color: #1a1a19;
+    border-color: var(--food);
+    font-weight: 600;
+  }
   button.tool { border-color: var(--border); }
   button.tool.active {
     background: var(--food);
@@ -440,6 +448,11 @@
            style="width:80px; accent-color: var(--food); display:none">
     <button id="rally-btn">Recall</button>
     <button id="pause-btn">Pause</button>
+    <span class="speed-group">
+      <button class="speed" data-speed="1">1x</button>
+      <button class="speed" data-speed="2">2x</button>
+      <button class="speed" data-speed="4">4x</button>
+    </span>
     <button id="restart-btn">Restart</button>
   </header>
 

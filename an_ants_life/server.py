@@ -256,7 +256,21 @@ def _assault_view(state: GameState) -> Optional[dict]:
     return None
 
 
-def _build_snapshot(state: GameState, paused: bool, save_note: Optional[str] = None) -> dict:
+SPEEDS = (1, 2, 4)
+
+
+def _clamp_speed(value) -> int:
+    """Nearest allowed speed, or 1 for anything unusable. The UI only
+    offers three, but the endpoint is open to anyone with curl."""
+    try:
+        want = int(value)
+    except (TypeError, ValueError):
+        return 1
+    return min(SPEEDS, key=lambda s: abs(s - want))
+
+
+def _build_snapshot(state: GameState, paused: bool, save_note: Optional[str] = None,
+                    speed: int = 1) -> dict:
     cfg = state.cfg
     colony = state.colony
     chapter = state.milestones.chapter
@@ -267,6 +281,7 @@ def _build_snapshot(state: GameState, paused: bool, save_note: Optional[str] = N
         "tick": state.tick,
         "t": round(state.t, 2),
         "paused": paused,
+        "speed": speed,
         "game_over": state.ending is not None,
         "world": {"w": cfg.WORLD_W, "h": cfg.WORLD_H},
         # Static for the life of a map; sent as a compact digit string
@@ -399,6 +414,7 @@ class SimRunner:
         self.state = GameState(self.cfg)
         self.clock = Timekeeper(self.cfg)
         self.paused = False
+        self.speed = 1
         self.snapshot: dict = _build_snapshot(self.state, self.paused)
         # deque.append / popleft are atomic under the GIL, so no lock.
         self._commands: Deque[dict] = deque()
@@ -433,6 +449,11 @@ class SimRunner:
 
         if action == "pause_toggle":
             self.paused = not self.paused
+        elif action == "set_speed":
+            # Runner control, like pause - it changes how fast the world
+            # is watched, not anything in it, so it does not belong with
+            # the player actions.
+            self.speed = _clamp_speed(cmd.get("speed"))
         elif action == "restart":
             self._archive_if_finished()
             self.state = GameState(cfg)
@@ -488,7 +509,15 @@ class SimRunner:
             self._drain()
 
             if not self.paused and self.state.ending is None:
-                self.state.step(dt)
+                # Faster means more ticks per frame, not a bigger dt.
+                # Every rate in this simulation was converted to per-second
+                # and is clamped at MAX_DT, so scaling dt would either be
+                # silently clipped or would change the physics - a 4x dt is
+                # a different game, four steps is the same game sooner.
+                for _ in range(self.speed):
+                    self.state.step(dt)
+                    if self.state.ending is not None:
+                        break
 
             if self.state.ending is not None:
                 self._archive_if_finished()
@@ -499,7 +528,8 @@ class SimRunner:
                 except OSError:
                     pass  # keep playing even if the disk is unhappy
 
-            self.snapshot = _build_snapshot(self.state, self.paused, self.last_save_note)
+            self.snapshot = _build_snapshot(self.state, self.paused,
+                                            self.last_save_note, self.speed)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -562,13 +592,49 @@ class Handler(BaseHTTPRequestHandler):
         pass  # keep the console quiet; the HUD isn't used in web mode
 
 
+def parse_port(argv) -> int:
+    """The port, however it was asked for.
+
+    `python3 -m server 8731` was the only accepted form and anything else
+    died on int(). `--port 8731` is what most people type first, and a
+    traceback is a poor greeting for someone opening the game for the
+    first time - so both work, and a bad one says so in a sentence rather
+    than a stack trace.
+    """
+    args = list(argv)
+    if args and args[0] in ("-p", "--port"):
+        args = args[1:]
+        if not args:
+            raise SystemExit("--port needs a number, e.g. --port 8731")
+    elif args and args[0].startswith("--port="):
+        args = [args[0].split("=", 1)[1]]
+    elif args and args[0] in ("-h", "--help"):
+        raise SystemExit("usage: python3 -m server [PORT | --port PORT]")
+
+    if not args:
+        return DEFAULT_PORT
+    try:
+        port = int(args[0])
+    except ValueError:
+        raise SystemExit(f"{args[0]!r} is not a port number. "
+                         f"Try: python3 -m server {DEFAULT_PORT}")
+    if not (1 <= port <= 65535):
+        raise SystemExit(f"{port} is not a usable port (1-65535).")
+    return port
+
+
 def main() -> None:
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
+    port = parse_port(sys.argv[1:])
 
     runner = SimRunner()
     threading.Thread(target=runner.run_forever, daemon=True).start()
 
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    try:
+        httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    except OSError as err:
+        raise SystemExit(f"Could not open port {port}: {err}. "
+                         f"Something else may already be using it - "
+                         f"try another, e.g. python3 -m server {port + 1}.")
     httpd.runner = runner
     print(f"An Ant's Life running at http://127.0.0.1:{port}")
     try:

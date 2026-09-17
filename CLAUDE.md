@@ -149,7 +149,7 @@ expensive. Protect them:
 cd an_ants_life
 python3 -m unittest discover -s tests -t .      # fast tier, ~3 min
 ANTS_SLOW=1 python3 -m unittest discover -s tests -t .   # adds long runs
-python3 -m server 8731                           # play it; port is positional
+python3 -m server 8731        # play it; --port 8731 and -p 8731 also work
 ```
 
 Long experiments belong in the scratchpad and should run under
