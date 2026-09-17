@@ -720,7 +720,7 @@ const WORK_DETAIL = {
   // Both raise the food ceiling; the difference is which half of the
   // fraction they raise it by, and that is the whole decision.
   nursery: "Every egg costs a third less, for the rest of the colony's life. Cheaper to replace what you lose.",
-  garden: "Every ant eats a fifth less, for the rest of the colony's life. Cheaper to keep what you have.",
+  garden: "Every ant eats a fifth less, for the rest of the colony's life. Worth more the more ants there are to feed.",
 };
 
 function updateWorks(data) {

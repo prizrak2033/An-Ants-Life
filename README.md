@@ -113,9 +113,10 @@ independently verified** · **○ not built**
 - ✅ Recall / rally, standing orders, policy sliders.
 - ✅ **Works** — spending food on a permanent rule change rather than on
   redirecting ants. Nursery (55 food, every egg 34% cheaper, forever) and
-  rampart (55 food, intruders at 0.55x within 20 of the nest). The first
-  player action measured to beat doing nothing; the second measured to do
-  nothing at all. See Known gaps 2.
+  fungus garden (55 food, every ant eats 20% less, forever) — deliberately
+  the two halves of the colony-size equation. Buying both is the only
+  thing measured in this project to move **survival** (25/32 → 31/32,
+  p=0.031). The garden does not pay on its own. See Known gaps 2.
 - ○ Forager flee behaviour, built and measured and **shipped off**
   (`ANT_FLEE_ENABLE`). It cuts casualties 41% and lost more colonies over 32
   paired seeds (29/32 -> 23/32, p=0.07). Kept behind the flag: the economic
@@ -258,8 +259,8 @@ a dozen ants, and the difference is not yet something the player controls.
    a cost and a consequence, not a redirection.
 
    **That prediction held.** Works (below) are the first player action in
-   this project that beats doing nothing, and the arm that tests the
-   prediction most directly wins by the largest margin.
+   this project that beats doing nothing, and buying both is the only
+   thing that has ever moved survival.
 
    Caveat, unchanged: this measures scripted policies, not skilled human
    judgment. But three policies of increasing sophistication, including one
@@ -267,27 +268,62 @@ a dozen ants, and the difference is not yet something the player controls.
    doing nothing, and the thing that finally worked was not a policy at
    all.
 
-2. **Works pay, but only one of them does, so there is no decision yet.**
-   `BuilderBot` is passive in every respect except the purchase, so
-   passive-vs-builder reads the spending decision on its own rather than
-   attention with building bolted on. 32 paired seeds, 900s:
+2. **Works are the first thing in this project that makes playing matter,
+   and the pair is what does it — neither half alone.** `BuilderBot` is
+   passive in every respect except the purchase, so passive-vs-builder
+   reads the spending decision on its own rather than attention with
+   building bolted on. 32 paired seeds, 900s, five arms:
 
    ```
-   passive -> nursery only    pop 16.5 -> 29.0   +12.50  CI [+6.62, +18.38]
-                              born 95   -> 105    +13.34  CI [+6.12, +20.84]
-                              survived 25/32 -> 30/32    p=0.125
-   passive -> rampart only    pop 16.5 -> 20.5    +2.03  CI [-5.38,  +9.16]
-                              survived 25/32 -> 26/32    p=1.000
-   nursery -> nursery+rampart pop 29.0 -> 32.0    +2.25  CI [-5.06,  +9.31]
+   arm                pop_end   born    lost   survived
+   passive               16.5   95.0   107.5    25/32
+   garden only           21.5   97.0   108.0    26/32
+   nursery only          29.0  105.0   107.0    30/32
+   nursery + garden      36.5  115.0   109.5    31/32
+
+   passive -> nursery only   pop +12.50  CI [+6.62, +18.38]  DIFFERENT
+                             born +13.34 CI [+6.12, +20.84]  DIFFERENT
+                             survived 25/32 -> 30/32   p=0.125
+   passive -> garden only    pop  +1.75  CI [-4.75,  +7.78]  null
+                             survived 25/32 -> 26/32   p=1.000
+   nursery -> + garden       born +10.47 CI [+1.09, +21.12]  DIFFERENT
+                             pop  +6.53  CI [-0.84, +14.19]  just misses
+   passive -> both works     pop +19.03  CI [+12.00, +26.34] DIFFERENT
+                             born +23.81 CI [+14.22, +33.44] DIFFERENT
+                             survived 25/32 -> 31/32   p=0.031  DIFFERENT
    ```
 
-   The nursery is the whole effect. It is not fetching more food —
-   deliveries are unchanged — it converts the same food into more ants, by
-   attacking a term the colony cannot touch for itself: the price of an
-   egg. That is exactly the mechanism gap 1 predicted.
+   **The last line is the one that matters.** Survival moved, for the
+   first time in this project — 6 discordant pairs, all six in favour of
+   building, p=0.031. Three agency experiments and the nursery on its own
+   all failed to move it. Deliveries are unchanged in every arm, so none
+   of this is fetching more food; it is converting the same food into
+   more ants.
 
-   The rampart did nothing measurable, alone or added on top of the
-   nursery, and has since been replaced.
+   **The garden does not pay alone, and the arithmetic says why.** Its
+   saving is `cut x upkeep x population x time`, so it scales with how
+   many mouths there are. On a passive-sized colony that is about 50 food
+   over a full run, against a 55 food price — it does not clear its own
+   cost. On a nursery-sized colony it is about 83. It is a second
+   purchase by construction, and the nursery is what makes the colony big
+   enough to be worth feeding cheaply.
+
+   So the intended design — two comparable options, best under different
+   conditions — **is not what was built.** The nursery is the better
+   first buy on 24 of 32 seeds, and splitting seeds by how violent they
+   are does not rescue the story (high-attrition seeds: nursery 10,
+   garden 6; low-attrition: nursery 14, garden 1). What exists is a build
+   *order*, not a choice. That is a real mechanic, but it is a weaker one
+   than the entry above it used to claim.
+
+   Two further limits. The food-spending decision still is not exclusive:
+   110 food for both is inside what a colony reaches in its first
+   minutes, and every builder run bought everything it could afford. And
+   this measures scripted policies, not human judgment.
+
+   The work replaced here was a rampart, which slowed intruders near the
+   nest and measured completely inert — alone (pop +2.03, CI [-5.38,
+   +9.16]) and stacked on a nursery (pop +2.25, CI [-5.06, +9.31]).
 
    **The first explanation given here for that was wrong**, and is left
    recorded because the correction is the useful part. It said the
@@ -307,18 +343,9 @@ a dozen ants, and the difference is not yet something the player controls.
    Losses 107.5 → 101.5, interval straddling zero, is what that looks
    like.
 
-   The transferable lesson is not the one first written here. It is: **a
-   work has to attack the term that is actually binding, in the units it
-   is measured in.** Slowing a thing does not reduce a rate that is not
-   expressed in distance.
-
-   Two things this does **not** establish. Survival is not distinguishable
-   in any arm — colonies get bigger, not more likely to live, and the
-   directional 25→30 is p=0.125. And the food-spending *decision* does not
-   exist yet: every one of 64 builder runs bought everything it could
-   afford, because 110 food for both is inside what a colony reaches in the
-   first few minutes. A second work that is best under *different*
-   conditions is what would turn a good button into a choice.
+   The transferable lesson: **a work has to attack the term that is
+   actually binding, in the units it is measured in.** Slowing a thing
+   does not reduce a rate that is not expressed in distance.
 
 3. **Nest defence is not currently failing**, which is a correction to
    what this file used to say. "Every colony death is the queen lost with
