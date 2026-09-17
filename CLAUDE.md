@@ -4,6 +4,64 @@ These are not general advice. Each one is here because it was broken, in
 this repository, and the incident is named so the rule can be argued with
 rather than obeyed blindly.
 
+## What this project is for
+
+Built for its author's own learning and enjoyment, with the intention of
+refactoring and growing it into something distributable - to friends, or
+sold. That target changes what counts as progress.
+
+**The measurement work has done its job.** The design truth is known and
+recorded in the README: the colony is too autonomous to be worth
+directing, four redistribution mechanics failed identically, and only
+rule-changes pay. A fifth agency experiment would be scholarship, not
+game development.
+
+**The binding constraint is now that nobody has ever played it.** This
+project has research-grade evidence about its mechanics and no evidence
+at all that anyone enjoys it. It is a sandbox that decays, with no goal,
+no win, and no reason to start a second run. Balance work is the
+comfortable work because it is measurable; it is not the work that
+matters for where this is going.
+
+Roadmap, in order. Each is one session:
+
+1. **Play it.** The author plays for fifteen minutes and reports what
+   confused or bored them. Everything below is guesswork until this
+   happens.
+2. **Win condition.** A goal - survive to X, reach population Y, drive
+   off N assaults. Turns a sandbox into a game.
+3. **First sixty seconds.** Onboarding. A new player currently meets
+   twenty controls and no instruction.
+4. **Variety.** More works, enemy kinds or map events. Replay value.
+5. **Packaging.** Runnable by someone who does not have Python.
+
+## How we work together
+
+The author is a self-taught developer and cybersecurity professional
+with a master's in sociology and political economy, and is building this
+to learn. Uses speech-to-text, so messages ramble - extract the intent,
+never ask for a rephrase. Has ADD: lead with the answer, keep sections
+short and skimmable, do not bury the point in preamble.
+
+- **Always end with a Y/n question, and say what each answer will do.**
+  Not "shall I proceed?" but "Y = I do this specific thing, n = I do
+  this other specific thing instead."
+- **Offer clickable options** rather than prose menus, so a decision is
+  one click instead of a typed paragraph.
+- **One recommendation, not a survey.** They will push back if they
+  disagree, and they have no ego about being corrected. Being redirected
+  is more use to them than being agreed with.
+- **Say when they are off the mark**, and offer the better option with
+  the reasoning. This is explicitly wanted.
+- **Teach while doing.** Briefly say *why* something works. The goal is
+  to understand the system, not to receive a black box. Second-order
+  effects and unintended consequences are the interesting part.
+- **One objective per session**, stated at the top. Batch the work and
+  report once rather than narrating each step - the conversation is the
+  expensive part, not the compute. Background experiments are cheap.
+- **Everything durable goes in this file.** It loads free every session;
+  anything re-explained in chat is paid for twice.
+
 ## Dependencies: standard library only
 
 Every import in `an_ants_life/` is stdlib or a local module. There is no
