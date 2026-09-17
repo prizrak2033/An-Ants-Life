@@ -111,6 +111,11 @@ independently verified** · **○ not built**
   playstyle) rather than a flat stat bonus — it is neutral when playing at
   home, which is the point.
 - ✅ Recall / rally, standing orders, policy sliders.
+- ✅ **Works** — spending food on a permanent rule change rather than on
+  redirecting ants. Nursery (55 food, every egg 34% cheaper, forever) and
+  rampart (55 food, intruders at 0.55x within 20 of the nest). The first
+  player action measured to beat doing nothing; the second measured to do
+  nothing at all. See Known gaps 2.
 - ○ Forager flee behaviour, built and measured and **shipped off**
   (`ANT_FLEE_ENABLE`). It cuts casualties 41% and lost more colonies over 32
   paired seeds (29/32 -> 23/32, p=0.07). Kept behind the flag: the economic
@@ -248,18 +253,55 @@ a dozen ants, and the difference is not yet something the player controls.
    at things is noise, and noise costs throughput.
 
    So the direction is not another tool or another signal. It is a
-   capability the colony **structurally lacks**: planning beyond what an
-   ant can see, or a resource decision that changes what is *possible*
-   rather than where it happens — spending food to dig a second chamber,
-   fortify an approach, commit to expansion over defence. Something with a
-   cost and a consequence, not a redirection.
+   capability the colony **structurally lacks**: a resource decision that
+   changes what is *possible* rather than where it happens. Something with
+   a cost and a consequence, not a redirection.
+
+   **That prediction held.** Works (below) are the first player action in
+   this project that beats doing nothing, and the arm that tests the
+   prediction most directly wins by the largest margin.
 
    Caveat, unchanged: this measures scripted policies, not skilled human
    judgment. But three policies of increasing sophistication, including one
-   that uses the warning's own information to decide, have all failed to
-   beat doing nothing.
+   that uses the warning's own information to decide, all failed to beat
+   doing nothing, and the thing that finally worked was not a policy at
+   all.
 
-2. **Nest defence is not currently failing**, which is a correction to
+2. **Works pay, but only one of them does, so there is no decision yet.**
+   `BuilderBot` is passive in every respect except the purchase, so
+   passive-vs-builder reads the spending decision on its own rather than
+   attention with building bolted on. 32 paired seeds, 900s:
+
+   ```
+   passive -> nursery only    pop 16.5 -> 29.0   +12.50  CI [+6.62, +18.38]
+                              born 95   -> 105    +13.34  CI [+6.12, +20.84]
+                              survived 25/32 -> 30/32    p=0.125
+   passive -> rampart only    pop 16.5 -> 20.5    +2.03  CI [-5.38,  +9.16]
+                              survived 25/32 -> 26/32    p=1.000
+   nursery -> nursery+rampart pop 29.0 -> 32.0    +2.25  CI [-5.06,  +9.31]
+   ```
+
+   The nursery is the whole effect. It is not fetching more food —
+   deliveries are unchanged — it converts the same food into more ants, by
+   attacking a term the colony cannot touch for itself: the price of an
+   egg. That is exactly the mechanism gap 1 predicted.
+
+   The rampart does nothing measurable, alone or added on top of the
+   nursery. It fails for the same reason the first three experiments
+   failed: **it reinforces something the colony is already good at.** Nest
+   defence is not failing (gap 3), so buying more of it buys nothing. It
+   is left in and left honest rather than quietly removed, because it is
+   the clearest example in the project of the trap.
+
+   Two things this does **not** establish. Survival is not distinguishable
+   in any arm — colonies get bigger, not more likely to live, and the
+   directional 25→30 is p=0.125. And the food-spending *decision* does not
+   exist yet: every one of 64 builder runs bought everything it could
+   afford, because 110 food for both is inside what a colony reaches in the
+   first few minutes. A second work that is best under *different*
+   conditions is what would turn a good button into a choice.
+
+3. **Nest defence is not currently failing**, which is a correction to
    what this file used to say. "Every colony death is the queen lost with
    the garrison at zero" was true of a much older build and has been
    carried forward too long. Measured now over 10 runs at 900s: the queen
@@ -268,13 +310,13 @@ a dozen ants, and the difference is not yet something the player controls.
    cases. The single run where the guard collapsed to zero was also the
    single run that died — which is suggestive, and is one data point.
 
-3. **Food is not the constraint.** Famine is under 1% and the ratio holds
+4. **Food is not the constraint.** Famine is under 1% and the ratio holds
    above 1.6x.
 
-4. **Sound has never been heard.** Every level was tuned by offline
+5. **Sound has never been heard.** Every level was tuned by offline
    measurement in a container with no audio device.
 
-5. **The visuals have had one pass, not a verdict.** Ants are drawn as
+6. **The visuals have had one pass, not a verdict.** Ants are drawn as
    oriented bodies, the field layers are smooth rather than tiled, and the
    palette is warm; that was checked against screenshots at each step. Nobody
    has actually played it, so readability in motion is still unconfirmed.

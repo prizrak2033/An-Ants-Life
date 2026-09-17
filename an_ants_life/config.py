@@ -367,10 +367,12 @@ class SimConfig:
     # and no ant could decide to build either, because an ant only sees
     # what is in front of it.
     #
-    # The costs are deliberately close to each other and high enough that
-    # both cannot be had early. That is the decision: which half of the
-    # colony's arithmetic to buy, and when - food spent on a work is food
-    # not spent on ants, and the payback has to outrun that.
+    # The costs are close to each other and well above the opening store of
+    # 40, so the first one is always a stretch of foraging the player chose
+    # to spend. They are NOT yet exclusive: 110 for both is inside what a
+    # colony reaches in its first few minutes, and all 64 measured builder
+    # runs bought everything they could afford. Until that changes this is
+    # a good button rather than a decision - see README, Known gaps 2.
     BUILD_ENABLE: bool = True
     BUILD_NURSERY_COST: float = 55.0
     # Every egg after this costs a third less, which is a permanent
@@ -380,8 +382,21 @@ class SimConfig:
     BUILD_NURSERY_EGG_DISCOUNT: float = 0.34
     BUILD_RAMPART_COST: float = 55.0
     # Earthworks around the nest. Intruders inside this ring are slowed,
-    # which hands the garrison more attacks before contact and cuts the
-    # losses that drive the replacement bill.
+    # which was meant to hand the garrison more attacks before contact and
+    # cut the losses that drive the replacement bill.
+    #
+    # MEASURED INERT. 32 paired seeds at 900s: alone it moves end
+    # population +2.03 (CI [-5.38, +9.16]) and survival 25/32 -> 26/32
+    # (p=1.00); added on top of a nursery it moves nothing either. Losses
+    # drop 107.5 -> 101.5 and that interval straddles zero too.
+    #
+    # It fails for the same reason the first three agency experiments
+    # failed: it reinforces something the colony is already good at. Nest
+    # defence is not failing, so buying more of it buys nothing. Kept and
+    # documented rather than quietly deleted, because it is the clearest
+    # worked example in this file of that trap. Tuning these two numbers
+    # is not the fix - a work has to attack a term the colony cannot
+    # already handle, the way the nursery attacks the price of an egg.
     BUILD_RAMPART_RADIUS: float = 20.0
     BUILD_RAMPART_SLOW: float = 0.55
 
