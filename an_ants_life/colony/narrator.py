@@ -47,6 +47,10 @@ _PHRASINGS: Dict[str, Callable[[HistoryEvent], str]] = {
     # The two loudest lines in the chronicle, and the only warning the
     # colony gets that is worth acting on: a band gathering at the border
     # is the one threat slow enough to answer.
+    EventKind.WORK_BUILT:
+        lambda e: ("The nursery is dug out. Every egg from here costs the colony less."
+                   if e.data.get("work") == "nursery"
+                   else "Earthworks rise around the nest. The approach is broken ground now."),
     EventKind.ASSAULT_MUSTERING:
         lambda e: (f"A war band is massing at the border — {_amt(e, 'size')} warriors, "
                    f"gathering to attack."),

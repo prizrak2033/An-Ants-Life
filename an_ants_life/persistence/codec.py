@@ -174,6 +174,7 @@ def dump_state(state: GameState) -> Dict[str, Any]:
             "next_ant_id": colony._next_ant_id,
             "queen": {"x": colony.queen.x, "y": colony.queen.y,
                       "hp": colony.queen.hp, "hp_max": colony.queen.hp_max},
+            "works": list(colony.works),
             "emergency": colony.emergency,
             "metrics": colony.metrics,
             "ants": [_ant_to_dict(a) for a in colony.ants],
@@ -260,6 +261,7 @@ def load_state(data: Dict[str, Any]) -> GameState:
     colony.queen.hp, colony.queen.hp_max = col["queen"]["hp"], col["queen"]["hp_max"]
     colony.emergency = dict(col["emergency"])
     colony.metrics = dict(col["metrics"])
+    colony.works = list(col.get("works", []))
     colony.ants = [_ant_from_dict(a) for a in col["ants"]]
 
     state.enemies = [_enemy_from_dict(e) for e in data["enemies"]]

@@ -41,10 +41,16 @@ def _update_carrying_capacity(state, cfg, colony, population: int, dt: float) ->
 
     # World regen is the hard ceiling; combat attrition then spends a
     # large share of it on replacing losses, so the liveable figure is a
-    # fraction of the naive one.
+    # fraction of the naive one. A nursery makes each replacement
+    # cheaper, which shrinks that share and genuinely lifts the ceiling -
+    # the readout has to move, or the player is told their 55 food bought
+    # nothing.
+    from systems.growth import egg_cost
+    attrition_share = 1.0 - cfg.CAPACITY_ATTRITION_ALLOWANCE
+    attrition_share *= egg_cost(state) / max(1e-9, cfg.GROWTH_EGG_FOOD_COST)
     regen = cfg.FOOD_PER_SOURCE / max(1e-6, cfg.FOOD_SOURCE_RESPAWN_SECONDS)
     colony.emergency["carrying_capacity"] = (
-        regen * cfg.CAPACITY_ATTRITION_ALLOWANCE) / upkeep_each
+        regen * (1.0 - attrition_share)) / upkeep_each
 
 
 def update_stress(state, dt: float) -> None:

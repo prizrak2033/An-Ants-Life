@@ -29,7 +29,7 @@ from typing import Callable, List, Optional, Tuple
 from tests.harness import DT, compare_rows
 from config import SimConfig
 from state import GameState
-from server import apply_player_action, _garrison
+from server import apply_player_action, work_cost, WORK_COSTS, _garrison
 
 
 @dataclass
@@ -55,6 +55,11 @@ class View:
     massing: int                                   # warriors mustering, 0 if none
     massing_seconds: float                         # until they advance
     inbound: int                                   # band warriors already advancing
+    # The food-spending decision. Both are on the screen from the first
+    # frame, priced, with the larder next to them - the player is meant
+    # to be choosing between them long before either is affordable.
+    works: List[str]                               # already built
+    work_costs: dict                               # name -> food price
 
 
 def observe(state: GameState) -> View:
@@ -80,6 +85,8 @@ def observe(state: GameState) -> View:
                              if e.band and e.muster_until_t > state.t] or [0.0]),
         inbound=sum(1 for e in state.enemies
                     if e.band and e.muster_until_t <= 0.0),
+        works=list(colony.works),
+        work_costs={w: work_cost(state.cfg, w) for w in WORK_COSTS},
     )
 
 
@@ -212,6 +219,50 @@ class AttentiveBot(Bot):
             self._soldier_target = want
 
 
+class BuilderBot(Bot):
+    """Spends food and does nothing else.
+
+    Deliberately not an attentive player with building bolted on. Three
+    experiments found that directing ants never beat leaving them alone,
+    so mixing the two arms would leave any result unattributable: this
+    one is passive in every respect except the purchase, which makes
+    passive-vs-builder a clean read on whether the spending decision by
+    itself is worth anything.
+
+    The order is a parameter because which work to buy first is the
+    decision the player is actually being asked to make, and a bot that
+    hard-coded one answer could not measure the other.
+    """
+    name = "builder"
+    decide_every = 2.0
+
+    # Buying is not free even when it is affordable: the birth gate is a
+    # food threshold, so draining the store to the floor trades ants for
+    # the work. Waiting for a cushion on top of the price is what a
+    # player watching the larder would do.
+    RESERVE = 40.0
+
+    def __init__(self, order=("nursery", "rampart"), name=None):
+        self.order = tuple(order)
+        self.name = name or f"build-{'-'.join(self.order)}"
+
+    def reset(self):
+        pass
+
+    def act(self, view, issue):
+        for work in self.order:
+            if work in view.works:
+                continue
+            cost = view.work_costs.get(work)
+            if cost is None:
+                continue
+            if view.food_store >= cost + self.RESERVE:
+                issue({"action": "build", "work": work})
+            # Whether it bought or not, stop here: the next work waits
+            # its turn, or the cheaper one always wins by default.
+            return
+
+
 def run_with_bot(seed: int, sim_seconds: float, bot: Bot, **cfg_over) -> dict:
     """One colony played by `bot`. Same row shape as harness.run()."""
     random.seed(seed)
@@ -260,6 +311,7 @@ def run_with_bot(seed: int, sim_seconds: float, bot: Bot, **cfg_over) -> dict:
         "lost": m["ants_killed"],
         "queen_hp": state.colony.queen.hp,
         "actions": actions,
+        "works": list(state.colony.works),
     }
 
 

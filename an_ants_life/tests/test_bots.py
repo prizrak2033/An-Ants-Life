@@ -15,7 +15,7 @@ from tests.bots import (AttentiveBot, Bot, PassiveBot, View, observe,
 from tests.harness import DT
 from config import SimConfig
 from state import GameState
-from server import apply_player_action
+from server import apply_player_action, PLAYER_ACTIONS
 
 
 def _state(seed=1, secs=60.0):
@@ -78,14 +78,20 @@ class TestBotsActOnlyThroughThePlayerInterface(unittest.TestCase):
         self.assertGreater(len(issued), 0, "attentive bot never did anything")
         fresh = GameState(SimConfig())
         for cmd in issued:
-            self.assertTrue(apply_player_action(fresh, cfg, cmd),
-                            f"bot issued something the interface rejects: {cmd}")
+            self.assertIn(cmd.get("action"), PLAYER_ACTIONS,
+                          f"bot issued something that is not a player action: {cmd}")
+            # Replayed for the side effects, not the answer: a fresh colony
+            # has a different larder, so a build legal there can be refused
+            # here. Legality is the name; the return value is effect.
+            apply_player_action(fresh, cfg, cmd)
 
     def test_unknown_actions_are_refused(self):
         cfg = SimConfig()
         st = GameState(cfg)
         self.assertFalse(apply_player_action(st, cfg, {"action": "win"}))
         self.assertFalse(apply_player_action(st, cfg, {"action": "spawn_ants"}))
+        self.assertNotIn("win", PLAYER_ACTIONS)
+        self.assertNotIn("spawn_ants", PLAYER_ACTIONS)
 
 
 class TestArms(unittest.TestCase):

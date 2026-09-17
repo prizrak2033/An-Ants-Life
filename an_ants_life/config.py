@@ -348,6 +348,43 @@ class SimConfig:
     PRAETORIAN_BONUS_HP: int = 0
     # Enemy attack lives per kind, in the enemy block above.
 
+    # Works
+    #
+    # The one thing the player can do that the colony cannot do for
+    # itself. Every other tool in the game redirects ants - marks, recall,
+    # caste sliders - and three paired experiments found that redirecting
+    # an emergent system tuned over many sessions is noise: attention
+    # never once beat doing nothing, and the only effect that reached
+    # significance in every run was delivering less food.
+    #
+    # A work is different in kind. It spends food to change a term in the
+    # equation that actually decides colony size:
+    #
+    #   P = (regen - GROWTH_EGG_FOOD_COST * loss_rate) / FOOD_UPKEEP_PER_ANT_PER_SEC
+    #
+    # A nursery lowers the cost of every future ant. A rampart lowers the
+    # rate at which they are lost. Neither tells a single ant what to do,
+    # and no ant could decide to build either, because an ant only sees
+    # what is in front of it.
+    #
+    # The costs are deliberately close to each other and high enough that
+    # both cannot be had early. That is the decision: which half of the
+    # colony's arithmetic to buy, and when - food spent on a work is food
+    # not spent on ants, and the payback has to outrun that.
+    BUILD_ENABLE: bool = True
+    BUILD_NURSERY_COST: float = 55.0
+    # Every egg after this costs a third less, which is a permanent
+    # discount on the largest single line in the food budget: replacing
+    # combat losses was measured at roughly three quarters of everything
+    # the world produces.
+    BUILD_NURSERY_EGG_DISCOUNT: float = 0.34
+    BUILD_RAMPART_COST: float = 55.0
+    # Earthworks around the nest. Intruders inside this ring are slowed,
+    # which hands the garrison more attacks before contact and cuts the
+    # losses that drive the replacement bill.
+    BUILD_RAMPART_RADIUS: float = 20.0
+    BUILD_RAMPART_SLOW: float = 0.55
+
     # Economy
     #
     # World food regeneration is the colony's real budget, and it sets the

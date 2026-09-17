@@ -106,7 +106,7 @@ def _audio_config(cfg: SimConfig) -> dict:
 # it could do things no one holding the interface can do, and any result
 # about how much play matters would be worth nothing.
 
-def _place(state: GameState, cfg: SimConfig, cmd: dict) -> None:
+def _place(state: GameState, cfg: SimConfig, cmd: dict) -> bool:
     kind = DirectiveKind(str(cmd["kind"]).upper())
     x = min(max(0.0, float(cmd["x"])), float(cfg.WORLD_W))
     y = min(max(0.0, float(cmd["y"])), float(cfg.WORLD_H))
@@ -116,9 +116,10 @@ def _place(state: GameState, cfg: SimConfig, cmd: dict) -> None:
         {"kind": kind.value, "x": round(x, 1), "y": round(y, 1)},
         cause="player_order", tags=["directive"]
     )
+    return True
 
 
-def _set_policy(state: GameState, cfg: SimConfig, cmd: dict) -> None:
+def _set_policy(state: GameState, cfg: SimConfig, cmd: dict) -> bool:
     scout = cmd.get("scout")
     soldier = cmd.get("soldier")
     state.policy.set_targets(
@@ -140,40 +141,88 @@ def _set_policy(state: GameState, cfg: SimConfig, cmd: dict) -> None:
          "auto_defense": state.policy.auto_defense},
         cause="player_order", tags=["policy"]
     )
+    return True
 
 
-def _set_rally(state: GameState, cfg: SimConfig, on: bool) -> None:
+def _set_rally(state: GameState, cfg: SimConfig, on: bool) -> bool:
     if state.policy.rally == on:
-        return
+        return False
     state.policy.rally = on
     state.history.emit(
         state.t, state.tick,
         EventKind.RALLY_CALLED if on else EventKind.RALLY_ENDED,
         {}, cause="player_order", tags=["rally"]
     )
+    return True
+
+
+WORK_COSTS = {"nursery": "BUILD_NURSERY_COST", "rampart": "BUILD_RAMPART_COST"}
+
+
+def work_cost(cfg: SimConfig, work: str) -> Optional[float]:
+    attr = WORK_COSTS.get(work)
+    return None if attr is None else float(getattr(cfg, attr))
+
+
+def _build(state: GameState, cfg: SimConfig, cmd: dict) -> bool:
+    """Spend food on something permanent. True if it was actually built.
+
+    Refused rather than queued when it cannot be afforded: a work is a
+    decision about what to do with food the colony has now, and letting
+    it sit pending would quietly commit every future delivery to it.
+    A refusal has to be visible to the caller, or a player cannot tell
+    a spent 55 food from an ignored click.
+    """
+    work = str(cmd.get("work", "")).lower()
+    cost = work_cost(cfg, work)
+    if not cfg.BUILD_ENABLE or cost is None:
+        return False
+    if work in state.colony.works or state.colony.food_store < cost:
+        return False
+
+    state.colony.food_store -= cost
+    state.colony.works.append(work)
+    state.history.emit(
+        state.t, state.tick, EventKind.WORK_BUILT,
+        {"work": work, "cost": round(cost, 1)},
+        cause="player_order", impact={"food_spent": cost}, tags=["works"]
+    )
+    return True
+
+
+PLAYER_ACTIONS = frozenset({
+    "place_directive", "remove_directive", "clear_directives",
+    "set_policy", "set_rally", "build",
+})
 
 
 def apply_player_action(state: GameState, cfg: SimConfig, cmd: dict) -> bool:
-    """Apply one in-world command. True if it was recognised.
+    """Apply one in-world command. True if it changed the world.
 
     This is the complete set of things a player can do to the colony.
     Pausing, saving and restarting act on the runner rather than the
     world and stay with it.
+
+    False covers two different things, and the caller usually wants to
+    know which: a command that is not a move at all, and a legal move
+    the colony declined (a work it cannot afford, a rally already
+    called). `PLAYER_ACTIONS` separates them -- membership is legality,
+    the return value is effect.
     """
     action = cmd.get("action")
     if action == "place_directive":
-        _place(state, cfg, cmd)
-    elif action == "remove_directive":
-        state.directives.remove(int(cmd["id"]))
-    elif action == "clear_directives":
-        state.directives.clear()
-    elif action == "set_policy":
-        _set_policy(state, cfg, cmd)
-    elif action == "set_rally":
-        _set_rally(state, cfg, bool(cmd.get("on")))
-    else:
-        return False
-    return True
+        return _place(state, cfg, cmd)
+    if action == "remove_directive":
+        return state.directives.remove(int(cmd["id"]))
+    if action == "clear_directives":
+        return state.directives.clear() > 0
+    if action == "set_policy":
+        return _set_policy(state, cfg, cmd)
+    if action == "set_rally":
+        return _set_rally(state, cfg, bool(cmd.get("on")))
+    if action == "build":
+        return _build(state, cfg, cmd)
+    return False
 
 
 def _assault_view(state: GameState) -> Optional[dict]:
@@ -244,6 +293,10 @@ def _build_snapshot(state: GameState, paused: bool, save_note: Optional[str] = N
         },
         "garrison": _garrison(state),
         "assault": _assault_view(state),
+        "works": {
+            "built": list(colony.works),
+            "costs": {w: work_cost(cfg, w) for w in WORK_COSTS},
+        },
         "enemy_counts": _count_kinds(state.enemies),
         "metrics": dict(colony.metrics),
         # Ants/enemies/food are packed as flat arrays (not objects) to keep

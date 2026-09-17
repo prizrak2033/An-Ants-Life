@@ -75,6 +75,17 @@ def _pick_role(state) -> Role:
     return Role.WORKER
 
 
+def egg_cost(state) -> float:
+    """What the next ant costs. A nursery discounts every one of them,
+    which is the largest single line in the food budget: replacing combat
+    losses was measured at roughly three quarters of world regen."""
+    cfg = state.cfg
+    cost = cfg.GROWTH_EGG_FOOD_COST
+    if "nursery" in state.colony.works:
+        cost *= (1.0 - cfg.BUILD_NURSERY_EGG_DISCOUNT)
+    return cost
+
+
 def _update_births(state) -> None:
     cfg = state.cfg
     if not cfg.GROWTH_ENABLE:
@@ -92,7 +103,7 @@ def _update_births(state) -> None:
     if (state.tick - last_birth_tick) < cfg.GROWTH_MIN_TICKS_BETWEEN_BIRTHS:
         return
 
-    colony.food_store -= cfg.GROWTH_EGG_FOOD_COST
+    colony.food_store -= egg_cost(state)
     colony.emergency["last_birth_tick"] = state.tick
 
     role = _pick_role(state)

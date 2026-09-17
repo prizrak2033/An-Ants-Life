@@ -40,12 +40,25 @@ def _spawn_point(state, cfg) -> Optional[Tuple[float, float]]:
     return None
 
 
+def _rampart_mult(state, cfg, x: float, y: float) -> float:
+    """Earthworks slow an intruder crossing them, which buys the garrison
+    attacks it would not otherwise get. Ants are unaffected - they built
+    the thing and know the way through."""
+    if "rampart" not in state.colony.works:
+        return 1.0
+    nx, ny = state.nest_pos
+    if math.hypot(x - nx, y - ny) > cfg.BUILD_RAMPART_RADIUS:
+        return 1.0
+    return cfg.BUILD_RAMPART_SLOW
+
+
 def _steer(state, cfg, enemy: Enemy, tx: float, ty: float, dt: float) -> None:
     terrain = state.terrain
     if state.t >= enemy.detour_until_t:
         dx, dy = tx - enemy.x, ty - enemy.y
         d = math.hypot(dx, dy) + 1e-6
-        speed = enemy.speed * terrain.speed_mult(enemy.x, enemy.y)
+        speed = (enemy.speed * terrain.speed_mult(enemy.x, enemy.y)
+                 * _rampart_mult(state, cfg, enemy.x, enemy.y))
         enemy.vx, enemy.vy = (dx / d) * speed, (dy / d) * speed
 
     px = min(max(0.0, enemy.x + enemy.vx * dt), cfg.WORLD_W)

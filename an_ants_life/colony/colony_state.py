@@ -23,7 +23,11 @@ class ColonyState:
     queen: Queen = field(init=False)
     _next_ant_id: int = field(init=False, default=1)
 
-    # “shared scratchpad” for systems
+    # Works the colony has paid for. Permanent, and the only player
+    # decision that changes what the colony is rather than where it goes.
+    works: List[str] = field(default_factory=list)
+
+    # "shared scratchpad" for systems
     emergency: Dict = field(default_factory=dict)
     metrics: Dict = field(default_factory=lambda: {
         "food_pickups": 0,

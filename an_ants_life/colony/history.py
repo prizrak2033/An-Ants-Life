@@ -27,6 +27,7 @@ class EventKind:
 
     # Enemies / combat
     ENEMY_SPAWN = "enemy_spawn"
+    WORK_BUILT = "work_built"
     ASSAULT_MUSTERING = "assault_mustering"
     ASSAULT_ADVANCING = "assault_advancing"
     ENEMY_CONTACT = "enemy_contact"
@@ -83,6 +84,7 @@ SIGNIFICANCE: Dict[str, int] = {
 
     EventKind.DIRECTIVE_EXPIRED: Significance.MINOR,
     EventKind.ENEMY_SPAWN: Significance.MINOR,
+    EventKind.WORK_BUILT: Significance.MAJOR,
     EventKind.ASSAULT_MUSTERING: Significance.MAJOR,
     EventKind.ASSAULT_ADVANCING: Significance.MAJOR,
     EventKind.ENEMY_KILL: Significance.MINOR,
