@@ -176,6 +176,37 @@ def apply_player_action(state: GameState, cfg: SimConfig, cmd: dict) -> bool:
     return True
 
 
+def _assault_view(state: GameState) -> Optional[dict]:
+    """The war band, if one is gathering or on its way.
+
+    This is the game's only actionable warning. Everything else arrives
+    faster than an order can be given: a lone warrior crosses from the
+    border and is dead or at the queen inside two seconds. A band holds
+    at the edge first, which is the only reason recall can be the right
+    answer to anything.
+    """
+    t = state.t
+    mustering = [e for e in state.enemies if e.band and e.muster_until_t > t]
+    if mustering:
+        return {
+            "phase": "mustering",
+            "size": len(mustering),
+            "seconds": round(max(e.muster_until_t for e in mustering) - t, 1),
+            "x": round(sum(e.x for e in mustering) / len(mustering), 1),
+            "y": round(sum(e.y for e in mustering) / len(mustering), 1),
+        }
+    inbound = [e for e in state.enemies if e.band and e.muster_until_t <= 0.0]
+    if inbound:
+        return {
+            "phase": "advancing",
+            "size": len(inbound),
+            "seconds": 0.0,
+            "x": round(sum(e.x for e in inbound) / len(inbound), 1),
+            "y": round(sum(e.y for e in inbound) / len(inbound), 1),
+        }
+    return None
+
+
 def _build_snapshot(state: GameState, paused: bool, save_note: Optional[str] = None) -> dict:
     cfg = state.cfg
     colony = state.colony
@@ -212,6 +243,7 @@ def _build_snapshot(state: GameState, paused: bool, save_note: Optional[str] = N
             "carrying_capacity": round(colony.emergency.get("carrying_capacity", 0.0), 1),
         },
         "garrison": _garrison(state),
+        "assault": _assault_view(state),
         "enemy_counts": _count_kinds(state.enemies),
         "metrics": dict(colony.metrics),
         # Ants/enemies/food are packed as flat arrays (not objects) to keep

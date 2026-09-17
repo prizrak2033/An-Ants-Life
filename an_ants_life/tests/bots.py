@@ -48,6 +48,13 @@ class View:
     food: List[Tuple[float, float, float]]          # x, y, amount
     enemies: List[Tuple[float, float, str]]         # x, y, kind
     marks: List[Tuple[int, str, float, float]]      # id, kind, x, y
+    # A war band gathering at the border, which the map draws and the
+    # chronicle announces. This is the only threat in the game slow
+    # enough to answer: a lone warrior is at the queen inside two
+    # seconds, which no recall can beat.
+    massing: int                                   # warriors mustering, 0 if none
+    massing_seconds: float                         # until they advance
+    inbound: int                                   # band warriors already advancing
 
 
 def observe(state: GameState) -> View:
@@ -67,6 +74,12 @@ def observe(state: GameState) -> View:
         food=[(s.x, s.y, s.amount) for s in state.world.food_sources if s.amount > 0],
         enemies=[(e.x, e.y, e.kind.value) for e in state.enemies],
         marks=[(d.id, d.kind.value, d.x, d.y) for d in state.directives.items],
+        massing=sum(1 for e in state.enemies
+                    if e.band and e.muster_until_t > state.t),
+        massing_seconds=max([e.muster_until_t - state.t for e in state.enemies
+                             if e.band and e.muster_until_t > state.t] or [0.0]),
+        inbound=sum(1 for e in state.enemies
+                    if e.band and e.muster_until_t <= 0.0),
     )
 
 
@@ -103,6 +116,7 @@ class AttentiveBot(Bot):
     name = "attentive"
     decide_every = 2.0
 
+    ANSWER_MUSTER_WITHIN = 6.0   # seconds before a band advances
     SIEGE_RADIUS = 20.0          # warriors this close are on the queen
     LIFT_SIEGE_RADIUS = 30.0     # hysteresis, so rally does not flicker
     MARK_MIN_DIST = 24.0         # near food needs no help finding
@@ -127,14 +141,21 @@ class AttentiveBot(Bot):
         pressing = [e for e in view.enemies
                     if e[2] == "WARRIOR" and math.hypot(e[0] - nx, e[1] - ny) <= radius]
 
+        # A band about to advance, or already on its way, is answered
+        # before it arrives. Reacting to warriors already at the nest is
+        # what made recall worthless: they cross the last twenty units in
+        # under a second and the order lands after the fighting.
+        band_coming = (view.massing and view.massing_seconds <= self.ANSWER_MUSTER_WITHIN) \
+            or view.inbound > 0
+
         # Rally stops foraging outright, so it is worth it only when the
         # nest is both threatened and short of defenders - which is the
         # state every measured colony death has been found in.
-        want = bool(pressing) and view.garrison_home <= view.garrison_floor
+        want = band_coming or (bool(pressing) and view.garrison_home <= view.garrison_floor)
         if want and not self._rallying:
             issue({"action": "set_rally", "on": True})
             self._rallying = True
-        elif not pressing and self._rallying:
+        elif not pressing and not band_coming and self._rallying:
             issue({"action": "set_rally", "on": False})
             self._rallying = False
 

@@ -243,27 +243,28 @@ class SimConfig:
     # Bands ignore ENEMY_MAX_ALIVE. That cap limits the trickle, and was
     # measured to never bind anyway; an assault is supposed to exceed
     # ordinary pressure.
-    # Off until the scale is right. As first built - bands of 4 to 6 - it
-    # was measured over 6 seeds at 900s against the same seeds with it
-    # off, and it added attrition without adding stakes: zero of 176 band
-    # warriors reached the queen, survival and queen hits were unchanged
-    # at 1/6 and 20, and median end population halved from 34 to 17.
+    # Size is the whole difference between this working and not, and it
+    # was swept rather than guessed. Over 6 seeds at 900s, against the
+    # same seeds with assaults off (1 colony lost, 20 queen hits):
     #
-    # The arithmetic says why, and it should have been checked first. A
-    # band of five is about 15 HP of warrior against roughly 18 soldiers
-    # doing 3 damage each; it is outnumbered three to one before it
-    # starts, and it arrives already reduced because ants pick musterers
-    # off at the border. It was never going to be a siege.
+    #    band  4-6    1/6 lost   20 hits   0.0% reached the queen
+    #    band  9-12   1/6 lost   39 hits   4.1% reached the queen
+    #    band 16-20   3/6 lost   94 hits  12.6% reached the queen
     #
-    # The shape is right and the scale is not. Band size is being swept
-    # against whether bands actually reach the queen; this turns on when
-    # a size is found that threatens her without simply killing the
-    # colony outright.
-    ASSAULT_ENABLE: bool = False
+    # At 4-6 it was pure attrition: not one of 176 band warriors got to
+    # her, and median population halved for nothing. The arithmetic says
+    # why - five warriors is ~15 HP against ~18 soldiers dealing 3 apiece,
+    # outnumbered before they start and already thinned by ants picking
+    # off musterers. At 16-20 the colony is simply crushed.
+    #
+    # 9-12 is a real threat that is not a death sentence: queen hits
+    # roughly double while survival stays exactly where it is without
+    # assaults at all.
+    ASSAULT_ENABLE: bool = True
     ASSAULT_FIRST_AT_SECONDS: float = 120.0
     ASSAULT_INTERVAL_SECONDS: float = 150.0
-    ASSAULT_MIN_SIZE: int = 4
-    ASSAULT_MAX_SIZE: int = 6
+    ASSAULT_MIN_SIZE: int = 9
+    ASSAULT_MAX_SIZE: int = 12
     ASSAULT_MUSTER_SECONDS: float = 12.0
     ASSAULT_MUSTER_SPREAD: float = 5.0
 

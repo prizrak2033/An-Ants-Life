@@ -451,6 +451,43 @@ function drawQueen(nest, queen, scaleX, scaleY) {
   ctx.stroke();
 }
 
+// The war band, drawn loud on purpose. Everything else in this game
+// arrives faster than a player can respond; a band holds at the border
+// first, and this countdown is the only actionable warning there is.
+function drawAssault(assault, scaleX, scaleY) {
+  if (!assault) return;
+  const px = assault.x * scaleX, py = assault.y * scaleY;
+  const mustering = assault.phase === "mustering";
+  const pulse = 0.5 + 0.5 * Math.sin(Date.now() / (mustering ? 260 : 120));
+  const hue = mustering ? "230, 96, 74" : "226, 58, 48";
+
+  const glow = ctx.createRadialGradient(px, py, 4, px, py, 46);
+  glow.addColorStop(0, `rgba(${hue},${0.30 + pulse * 0.22})`);
+  glow.addColorStop(1, `rgba(${hue},0)`);
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(px, py, 46, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = `rgba(${hue},${0.55 + pulse * 0.45})`;
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.arc(px, py, 26 + pulse * 5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const label = mustering
+    ? `${assault.size} MASSING · ${assault.seconds.toFixed(0)}s`
+    : `${assault.size} INBOUND`;
+  ctx.font = "600 13px ui-sans-serif, system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "rgba(0,0,0,0.75)";
+  ctx.strokeText(label, px, py - 34);
+  ctx.fillStyle = `rgba(255,214,206,${0.85 + pulse * 0.15})`;
+  ctx.fillText(label, px, py - 34);
+  ctx.textAlign = "start";
+}
+
 function render(data) {
   const scaleX = canvas.width / data.world.w;
   const scaleY = canvas.height / data.world.h;
@@ -476,6 +513,7 @@ function render(data) {
   drawAnts(data.ants, scaleX, scaleY);
   drawQueen(data.nest, data.queen, scaleX, scaleY);
   if (layers.directives) drawDirectives(data.directives, scaleX, scaleY);
+  drawAssault(data.assault, scaleX, scaleY);
 }
 
 function drawDirectives(directives, scaleX, scaleY) {
