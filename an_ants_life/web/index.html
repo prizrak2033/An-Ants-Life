@@ -106,6 +106,41 @@
   #tool-hint { font-size: 11px; color: var(--ink-muted); margin-left: 4px; }
   #tool-detail { font-size: 11px; color: var(--food); font-style: italic; }
 
+  #worksbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  #worksbar .spacer { flex: 1; }
+  button.work { font-variant-numeric: tabular-nums; }
+  /* Affordable is the only state worth colouring: the decision is a
+     moment, and the rest of the run the buttons should stay quiet. */
+  button.work.ready {
+    border-color: var(--food);
+    color: var(--food);
+  }
+  button.work.built {
+    background: var(--food);
+    color: #1a1a19;
+    border-color: var(--food);
+    font-weight: 600;
+    cursor: default;
+  }
+  button.work:disabled:not(.built) {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  #works-hint { font-size: 11px; color: var(--ink-muted); margin-left: 4px; }
+  #works-larder {
+    font-size: 11px;
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
   #layerbar {
     display: flex;
     align-items: center;
@@ -418,6 +453,15 @@
     <span id="tool-detail"></span>
     <div class="spacer"></div>
     <button id="clear-directives">Clear all</button>
+  </div>
+
+  <div id="worksbar">
+    <span class="tool-label">Works</span>
+    <button class="work" data-work="nursery"></button>
+    <button class="work" data-work="rampart"></button>
+    <span id="works-hint">Food spent here is gone for good. The colony opens with 40, so the first is a wait and the second a longer one.</span>
+    <div class="spacer"></div>
+    <span id="works-larder"></span>
   </div>
 
   <div id="layerbar">

@@ -59,11 +59,14 @@ class TestBuying(unittest.TestCase):
         self.assertEqual(st.colony.works, [])
         self.assertEqual(st.colony.food_store, before)
 
-    def test_both_works_cannot_be_had_from_a_standing_start(self):
-        """The decision is only a decision if it excludes something."""
+    def test_neither_work_is_affordable_at_the_opening_whistle(self):
+        """The decision has to cost something to be a decision. The
+        colony opens well short of even one, so a work is always a
+        stretch of foraging the player chose to spend rather than a
+        button that happens to be lit."""
         cfg = SimConfig()
         opening = GameState(cfg).colony.food_store
-        self.assertLess(opening, sum(work_cost(cfg, w) for w in WORK_COSTS))
+        self.assertLess(opening, min(work_cost(cfg, w) for w in WORK_COSTS))
 
     def test_the_build_flag_turns_the_whole_feature_off(self):
         st, cfg = _state(500.0, BUILD_ENABLE=False)

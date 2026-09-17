@@ -709,6 +709,48 @@ function renderPolicy(data) {
   rally.classList.toggle("active", !!p.rally);
 }
 
+// What each work buys, in the terms the HUD already uses. Written out
+// rather than derived, because a price with no stated effect is not a
+// decision - it is a button.
+const WORK_LABEL = {
+  nursery: "Nursery",
+  rampart: "Rampart",
+};
+const WORK_DETAIL = {
+  nursery: "Every egg costs a third less, for the rest of the colony's life. Raises the food ceiling.",
+  rampart: "Intruders crossing the ground around the nest move at little over half speed. The guard gets more swings before they reach the queen.",
+};
+
+function updateWorks(data) {
+  const works = data.works;
+  if (!works) return;
+  const built = new Set(works.built || []);
+  const food = data.colony ? data.colony.food_store : 0;
+
+  for (const b of document.querySelectorAll("button.work[data-work]")) {
+    const key = b.dataset.work;
+    const cost = works.costs ? works.costs[key] : null;
+    if (cost == null) { b.style.display = "none"; continue; }
+    const have = built.has(key);
+    const afford = food >= cost;
+
+    b.textContent = have ? `${WORK_LABEL[key]} ✓` : `${WORK_LABEL[key]} · ${Math.round(cost)}`;
+    b.classList.toggle("built", have);
+    b.classList.toggle("ready", !have && afford);
+    b.disabled = have || !afford;
+    b.title = have
+      ? `Built. ${WORK_DETAIL[key]}`
+      : (afford
+        ? `${Math.round(cost)} food, spent now. ${WORK_DETAIL[key]}`
+        : `${Math.round(cost)} food — ${Math.ceil(cost - food)} short. ${WORK_DETAIL[key]}`);
+  }
+
+  const outstanding = Object.keys(works.costs || {}).filter((w) => !built.has(w));
+  document.getElementById("works-larder").textContent = outstanding.length
+    ? `larder ${Math.floor(food)}`
+    : "";
+}
+
 function updateSidebar(data) {
   document.getElementById("tick-readout").textContent = `tick ${data.tick} · t ${data.t.toFixed(1)}s`;
   document.getElementById("colony-name").textContent = data.colony_name || "";
@@ -830,6 +872,7 @@ async function poll() {
     lastFrame = data;
     render(data);
     updateSidebar(data);
+    updateWorks(data);
     audio.update(data);
     playNewEvents(data);
   } catch (err) {
@@ -991,6 +1034,13 @@ document.getElementById("layers-all").addEventListener("click", () => {
 });
 document.getElementById("clear-directives")
   .addEventListener("click", () => send({ action: "clear_directives" }));
+
+for (const b of document.querySelectorAll("button.work[data-work]")) {
+  b.addEventListener("click", () => {
+    if (b.disabled) return;
+    send({ action: "build", work: b.dataset.work });
+  });
+}
 
 document.getElementById("rally-btn").addEventListener("click", () => {
   const on = !(lastFrame && lastFrame.policy && lastFrame.policy.rally);
