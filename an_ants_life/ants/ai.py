@@ -132,6 +132,38 @@ def _flee_point(state: 'GameState', ant: 'Ant', cfg) -> Optional[Tuple[float, fl
     return best
 
 
+def _loudest_call(state, ant, cfg):
+    """Where the loudest call within earshot is coming from, if any.
+
+    Alarm is read as a place, not as a gradient. The foraging channels
+    are climbed cell by cell because a trail is a path worth following;
+    a call is not a path, it is a destination, and an ant that hill-
+    climbed toward it would take the scenic route to a fight that lasts
+    about a second.
+
+    Membership of the responder set is decided once per tick for the
+    guard as a whole, because the limit is a group property: never below
+    the floor the nest keeps whatever else is happening.
+    """
+    if not cfg.ALARM_ENABLE:
+        return None
+    if ant.id not in state.colony.emergency.get("alarm_responders", ()):
+        return None
+    calls = state.colony.emergency.get("alarm_calls", ())
+    if not calls:
+        return None
+
+    reach_sq = cfg.ALARM_ANSWER_RADIUS * cfg.ALARM_ANSWER_RADIUS
+    best, best_level = None, 0.0
+    for cx, cy, level in calls:
+        dx, dy = cx - ant.x, cy - ant.y
+        if dx * dx + dy * dy > reach_sq:
+            continue
+        if level > best_level:
+            best_level, best = level, (cx, cy)
+    return best
+
+
 def choose_intent(state: 'GameState', ant: 'Ant', dt: float = 1.0 / 30.0) -> Intent:
     """Choose the next action for an ant based on its role and current state."""
     cfg = state.cfg
@@ -172,6 +204,14 @@ def choose_intent(state: 'GameState', ant: 'Ant', dt: float = 1.0 / 30.0) -> Int
         e, d = _closest_enemy(state, ant.x, ant.y, cfg.COMBAT_SCAN_RADIUS)
         if e is not None:
             return Intent(target=(e.x, e.y), deposit_channel="home")
+        # Answer a call. Checked after the soldier's own eyes and after
+        # the thief chase, so it only ever adds reach - inside
+        # COMBAT_SCAN_RADIUS it can already see the fight itself, and a
+        # call is no reason to abandon one in front of it.
+        call = _loudest_call(state, ant, cfg)
+        if call is not None:
+            return Intent(target=call, deposit_channel="home")
+
         # Patrol the nest, or a defend mark if the player has set a line.
         # Membership of the detachment is decided once per tick for the
         # guard as a whole, since the limit is a group property: a share

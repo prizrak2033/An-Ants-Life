@@ -144,6 +144,41 @@ class SimConfig:
     HOME_PHERO_DEPOSIT_AMOUNT: float = 0.85
     PHERO_FOLLOW_STEP: float = 14.0
 
+    # --- Alarm -------------------------------------------------------
+    # The colony's third scent channel, and its only way of saying that
+    # something is happening *now*.
+    #
+    # It was measured missing. Over 8 runs at 900s, non-combatants are
+    # 59% of all casualties and 91.2% of them die with no soldier or
+    # praetorian inside COMBAT_SCAN_RADIUS - median distance to the
+    # nearest fighter is 37.7. Fighters die in company: median 1.9, only
+    # 2.1% of them alone. Workers were dying by themselves a third of the
+    # map from help that never learned it was needed.
+    #
+    # This is the same casualty problem ANT_FLEE_ENABLE attacked from the
+    # wrong end. Flee pulled the worker out of the fight, cut casualties
+    # 41% and lost colonies doing it, because worker chip damage was
+    # holding the nest up. Alarm is the opposite trade: the worker stays
+    # and fights, and something comes to it.
+    ALARM_ENABLE: bool = True
+    # Laid by any ant that takes a hit, at the place it was hit.
+    ALARM_DEPOSIT_AMOUNT: float = 2.0
+    # Set from the timings, not by feel. An ant moves at ANT_SPEED 40, so
+    # crossing the full answer radius takes about 1.05s; a worker with 4
+    # HP against a 1-damage enemy on a 0.333s cooldown lives about 1.33s
+    # in contact. At this rate a single hit stays audible 0.47s - long
+    # enough to register - and a running fight 1.63s, which covers the
+    # crossing with room. Slower and the guard is sent to yesterday's
+    # trouble; faster (2.5 was tried) and a call from the edge of earshot
+    # goes quiet before anyone can reach it.
+    ALARM_DECAY_PER_SEC: float = 1.0
+    # How far a soldier will hear a call. Wider than COMBAT_SCAN_RADIUS
+    # (14) on purpose: inside that radius it can already see the enemy
+    # itself, so anything narrower would only duplicate what it does now.
+    ALARM_ANSWER_RADIUS: float = 42.0
+    # Below this a cell is the residue of a finished fight, not a call.
+    ALARM_MIN_LEVEL: float = 0.35
+
     # Stress
     STRESS_DECAY_PER_SEC: float = 0.20
     STRESS_FROM_HUNGER: float = 0.50

@@ -1,7 +1,12 @@
 """
-Pheromone grid system: two decaying, diffusing scent channels (food and
-home) that ants deposit into as they move and sample gradients from
-when foraging.
+Pheromone grid system: three decaying, diffusing scent channels that
+ants deposit into as they move and sample gradients from.
+
+Food and home are the foraging pair, laid continuously and read as
+gradients. Alarm is different in kind: laid only where an ant is hit,
+decaying several times faster, and read as "where is the loudest call
+within earshot" rather than as a gradient to climb. It says something is
+happening now, so a stale trail of it would be worse than none.
 """
 from __future__ import annotations
 import math
@@ -17,6 +22,7 @@ class PheromoneSystem:
         self.grids: Dict[str, List[List[float]]] = {
             "food": [[0.0] * self.rows for _ in range(self.cols)],
             "home": [[0.0] * self.rows for _ in range(self.cols)],
+            "alarm": [[0.0] * self.rows for _ in range(self.cols)],
         }
 
         # Terrain never changes, so resolve each pheromone cell's decay
@@ -71,7 +77,8 @@ class PheromoneSystem:
         """
         cfg = self.cfg
         decay_rates = {"food": cfg.FOOD_PHERO_DECAY_PER_SEC,
-                       "home": cfg.HOME_PHERO_DECAY_PER_SEC}
+                       "home": cfg.HOME_PHERO_DECAY_PER_SEC,
+                       "alarm": cfg.ALARM_DECAY_PER_SEC}
         # A rate per second, like the decay beside it. Applied once per
         # tick it scaled with framerate instead of with time.
         diffuse = min(1.0, cfg.PHERO_DIFFUSE * dt)
@@ -115,6 +122,25 @@ class PheromoneSystem:
                     if v >= 1e-6:
                         new_grid[cx][cy] = v
             self.grids[channel] = new_grid
+
+    def hotspots(self, channel: str, min_level: float):
+        """Every cell in `channel` above `min_level`, as world points.
+
+        Computed once per tick for the whole colony rather than per ant.
+        A radius search per soldier would re-read the same few hundred
+        cells a dozen times a frame to find the same handful of answers;
+        alarm is sparse by construction, so one sweep and a short list is
+        both cheaper and easier to reason about.
+        """
+        found = []
+        half = self.cell * 0.5
+        for cx in range(self.cols):
+            col = self.grids[channel][cx]
+            for cy in range(self.rows):
+                level = col[cy]
+                if level >= min_level:
+                    found.append((cx * self.cell + half, cy * self.cell + half, level))
+        return found
 
     def sample_best_direction(
         self, channel: str, pos: Tuple[float, float], step: float,

@@ -32,6 +32,12 @@ def update_directives(state, dt: float) -> None:
             cause="scent_faded", tags=["directive"]
         )
 
+    # Before the early return below. Alarm has nothing to do with the
+    # directive board, and leaving it down there meant the guard only
+    # answered calls while the player happened to have a mark placed -
+    # which is to say, almost never.
+    _assign_alarm_responders(state)
+
     if not board.items:
         return
 
@@ -54,6 +60,43 @@ def update_directives(state, dt: float) -> None:
             ant.recruited_to = None
 
     _assign_defend_detachment(state)
+    # Re-run now the detachment is known, so the two share one budget.
+    _assign_alarm_responders(state)
+
+
+def _assign_alarm_responders(state) -> None:
+    """Decide which soldiers may answer a call for help.
+
+    Shares one budget with the defend detachment rather than keeping its
+    own. Two independent limits that each respect the floor can still
+    breach it together - the detachment takes its share, alarm answers
+    with what is left, and the nest keeps its guard either way. Leaving
+    the nest undefended is exactly how the defend directive used to kill
+    queens, which is what DIRECTIVE_DEFEND_MIN_GARRISON exists for.
+
+    Praetorians are never eligible. Nothing moves them off the queen.
+    """
+    cfg = state.cfg
+    if not cfg.ALARM_ENABLE:
+        state.colony.emergency["alarm_responders"] = frozenset()
+        state.colony.emergency["alarm_calls"] = ()
+        return
+
+    # One sweep of the grid for the whole colony. Alarm is sparse, so
+    # this is a short list; a radius search per soldier would re-read the
+    # same few hundred cells a dozen times a frame for the same answers.
+    state.colony.emergency["alarm_calls"] = tuple(
+        state.pheromones.hotspots("alarm", cfg.ALARM_MIN_LEVEL))
+
+    soldiers = sorted((a for a in state.colony.ants if a.role is Role.SOLDIER),
+                      key=lambda a: a.id)
+    detached = state.colony.emergency.get("defend_detachment", frozenset())
+    free = [a for a in soldiers if a.id not in detached]
+    # The floor counts every soldier already away, however it left.
+    spare = len(soldiers) - len(detached) - cfg.DIRECTIVE_DEFEND_MIN_GARRISON
+    state.colony.emergency["alarm_responders"] = (
+        frozenset(a.id for a in free[-spare:]) if spare > 0 else frozenset()
+    )
 
 
 def _assign_defend_detachment(state) -> None:

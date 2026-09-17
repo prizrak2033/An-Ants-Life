@@ -101,6 +101,13 @@ def update_combat(state, dt: float) -> None:
             enemy.hp -= _atk_for_role(cfg, ant.role)
             ant.hp -= enemy.atk
 
+            # The ant says where it is being hurt. This is the whole of
+            # the alarm channel's input - no ant decides to raise it, and
+            # none can raise it for somewhere it is not.
+            if cfg.ALARM_ENABLE:
+                state.pheromones.deposit("alarm", (ant.x, ant.y),
+                                         cfg.ALARM_DEPOSIT_AMOUNT)
+
             state.history.emit(
                 state.t, tick, EventKind.ENEMY_CONTACT,
                 {"ant_id": ant.id, "enemy_id": enemy.id, "kind": enemy.kind.value,
