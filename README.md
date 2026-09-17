@@ -347,7 +347,34 @@ a dozen ants, and the difference is not yet something the player controls.
    actually binding, in the units it is measured in.** Slowing a thing
    does not reduce a rate that is not expressed in distance.
 
-3. **Nest defence is not currently failing**, which is a correction to
+3. **The colony has no alarm. Workers die alone and cannot call for
+   help.** Measured over 8 runs at 900s, 813 deaths:
+
+   ```
+   non-combatants  479 deaths (59% of all)
+     median distance to nearest fighter        37.7
+     died with no fighter within scan radius   91.2%
+
+   fighters        334 deaths (41% of all)
+     median distance to nearest fighter         1.9
+     died with no fighter within scan radius    2.1%
+   ```
+
+   Soldiers die in company; workers die by themselves, a third of the map
+   away from the nearest ant that could have helped. The colony carries
+   food scent and home scent and nothing else, so a worker under attack
+   has no way to tell anyone it is happening.
+
+   This is the same 59%-of-casualties problem the flee mechanic attacked
+   from the wrong end. Flee removed the worker from the fight; it cut
+   casualties 41% and lost colonies (29/32 -> 23/32), because the chip
+   damage workers deal was holding the nest up. An alarm channel is the
+   opposite trade: the worker stays and fights, and something comes to
+   it. Untested - see the sequenced plan in the session notes before
+   building it, and measure whether soldiers leaving their posts costs
+   more than the workers it saves.
+
+4. **Nest defence is not currently failing**, which is a correction to
    what this file used to say. "Every colony death is the queen lost with
    the garrison at zero" was true of a much older build and has been
    carried forward too long. Measured now over 10 runs at 900s: the queen
@@ -356,13 +383,13 @@ a dozen ants, and the difference is not yet something the player controls.
    cases. The single run where the guard collapsed to zero was also the
    single run that died — which is suggestive, and is one data point.
 
-4. **Food is not the constraint.** Famine is under 1% and the ratio holds
+5. **Food is not the constraint.** Famine is under 1% and the ratio holds
    above 1.6x.
 
-5. **Sound has never been heard.** Every level was tuned by offline
+6. **Sound has never been heard.** Every level was tuned by offline
    measurement in a container with no audio device.
 
-6. **The visuals have had one pass, not a verdict.** Ants are drawn as
+7. **The visuals have had one pass, not a verdict.** Ants are drawn as
    oriented bodies, the field layers are smooth rather than tiled, and the
    palette is warm; that was checked against screenshots at each step. Nobody
    has actually played it, so readability in motion is still unconfirmed.
