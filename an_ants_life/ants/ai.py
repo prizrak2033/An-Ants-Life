@@ -11,12 +11,12 @@ This module contains the logic for ant behavior, including:
 import random
 import math
 from typing import Tuple, Optional, TYPE_CHECKING
-from ants.intents import Intent
-from ants.roles import Role
+from .intents import Intent
+from .roles import Role
 
 if TYPE_CHECKING:
-    from state import GameState
-    from ants.ant import Ant
+    from ..state import GameState
+    from .ant import Ant
 
 
 def _rand_point(cfg, cx: float, cy: float, r: float) -> Tuple[float, float]:

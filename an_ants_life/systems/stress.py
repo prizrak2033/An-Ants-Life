@@ -6,6 +6,10 @@ level, which decays naturally over time.
 from __future__ import annotations
 
 
+def _clamp_unit_interval(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
 def update_stress(state, dt: float) -> None:
     cfg = state.cfg
     colony = state.colony
@@ -15,14 +19,15 @@ def update_stress(state, dt: float) -> None:
     colony.food_store = max(0.0, colony.food_store - upkeep)
 
     reserve_target = max(1.0, population * cfg.FOOD_UPKEEP_PER_ANT_PER_SEC * cfg.FOOD_RESERVE_BUFFER_SEC)
-    hunger = max(0.0, min(1.0, 1.0 - colony.food_store / reserve_target))
+    hunger = _clamp_unit_interval(1.0 - colony.food_store / reserve_target)
     colony.emergency["hunger"] = hunger
 
     state.world.maybe_respawn_food()
 
-    pressure = colony.emergency.get("territory_pressure", 0.0)
+    pressure = _clamp_unit_interval(float(colony.emergency.get("territory_pressure", 0.0)))
+    colony.emergency["territory_pressure"] = pressure
 
     colony.stress += cfg.STRESS_FROM_HUNGER * hunger * dt
     colony.stress += cfg.TERR_STRESS_FROM_PRESSURE * pressure * dt
     colony.stress -= cfg.STRESS_DECAY_PER_SEC * dt
-    colony.stress = max(0.0, min(1.0, colony.stress))
+    colony.stress = _clamp_unit_interval(colony.stress)

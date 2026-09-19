@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
-from colony.history import EventKind
+from .history import EventKind
 
 @dataclass
 class ChapterState:
@@ -51,8 +51,8 @@ class MilestoneTracker:
                 self.chapter.started_tick = state.tick
                 self.chapter.last_signal_tick = state.tick
                 self._last_chapter_change_tick = state.tick
-                state.history.emit(
-                    state.t, state.tick, EventKind.CHAPTER_START,
+                state.emit_history(
+                    EventKind.CHAPTER_START,
                     {"title": title, "pressure": round(pressure, 3)},
                     cause="pattern_match",
                     impact={"chapter": title},
@@ -68,8 +68,8 @@ class MilestoneTracker:
                 ended_title = self.chapter.title
                 self.chapter = ChapterState()
                 self._last_chapter_change_tick = state.tick
-                state.history.emit(
-                    state.t, state.tick, EventKind.CHAPTER_END,
+                state.emit_history(
+                    EventKind.CHAPTER_END,
                     {"title": ended_title},
                     cause="stability_return",
                     impact={"chapter": ended_title},

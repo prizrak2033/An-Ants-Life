@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 from typing import Dict, List
 import random
 
-from ants.ant import Ant
-from ants.roles import Role
+from ..ants.ant import Ant
+from ..ants.roles import Role
 
 @dataclass
 class Queen:

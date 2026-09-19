@@ -132,6 +132,7 @@ class SimConfig:
     # Chronicle
     CHRONICLE_SHOW: bool = True
     CHRONICLE_N_EVENTS: int = 12
+    HISTORY_MAX_EVENTS: int = 2_000
 
     # Debug/HUD
     HUD_EVERY_TICKS: int = 15
