@@ -29,8 +29,8 @@ def _update_famine(state, cfg, colony, emergency) -> None:
             emergency["famine_active"] = True
             emergency["famine_started_tick"] = state.tick
             colony.stress = min(1.0, colony.stress + cfg.EMERGENCY_FAMINE_STRESS_BONUS)
-            state.history.emit(
-                state.t, state.tick, EventKind.EMERGENCY_FAMINE_START,
+            state.emit_history(
+                EventKind.EMERGENCY_FAMINE_START,
                 {"hunger": round(hunger, 3)},
                 cause="food_shortage",
                 impact={"stress": cfg.EMERGENCY_FAMINE_STRESS_BONUS},
@@ -42,15 +42,15 @@ def _update_famine(state, cfg, colony, emergency) -> None:
     elapsed = state.tick - started_tick
     if hunger <= cfg.EMERGENCY_FAMINE_OFF_HUNGER and elapsed >= cfg.EMERGENCY_FAMINE_MIN_TICKS:
         emergency["famine_active"] = False
-        state.history.emit(
-            state.t, state.tick, EventKind.EMERGENCY_FAMINE_END,
+        state.emit_history(
+            EventKind.EMERGENCY_FAMINE_END,
             {"hunger": round(hunger, 3)},
             cause="food_recovered",
             tags=["emergency", "famine", "recovery"]
         )
     else:
-        state.history.emit(
-            state.t, state.tick, EventKind.EMERGENCY_FAMINE_PRESSURE,
+        state.emit_history(
+            EventKind.EMERGENCY_FAMINE_PRESSURE,
             {"hunger": round(hunger, 3)},
             cause="ongoing_shortage",
             tags=["emergency", "famine"]
@@ -74,8 +74,8 @@ def _reassign_for_famine(state, cfg, colony) -> None:
         converted += n
 
     if converted:
-        state.history.emit(
-            state.t, state.tick, EventKind.EMERGENCY_FAMINE_REASSIGN,
+        state.emit_history(
+            EventKind.EMERGENCY_FAMINE_REASSIGN,
             {"converted": converted},
             cause="famine_response",
             impact={"role_conversions": converted},
@@ -101,8 +101,8 @@ def _update_raid(state, cfg, colony, emergency) -> None:
     colony.metrics["raids"] += 1
     colony.metrics["ants_killed"] += kills
 
-    state.history.emit(
-        state.t, state.tick, EventKind.EMERGENCY_RAID,
+    state.emit_history(
+        EventKind.EMERGENCY_RAID,
         {"kills": kills, "stress": round(colony.stress, 3)},
         cause="enemy_raid",
         impact={"ants_killed": kills},

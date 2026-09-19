@@ -104,7 +104,8 @@ def load_game(save_path: Path, cfg) -> GameState:
                 data=_dict_with_json_scalars(item.get("data", {})),
             )
             for item in _require_list(history, "events")
-        ]
+        ],
+        max_events=cfg.HISTORY_MAX_EVENTS,
     )
 
     milestones = _require_dict(data, "milestones")

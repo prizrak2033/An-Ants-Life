@@ -12,6 +12,7 @@ This is an ant colony simulation game inspired by SimAnt, featuring:
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from .config import SimConfig
@@ -69,7 +70,14 @@ def run(
 ) -> None:
     """Main game loop - runs the ant colony simulation."""
     cfg = SimConfig()
-    state = GameState(cfg) if new_game else load_game(save_path, cfg)
+    if new_game:
+        state = GameState(cfg)
+    else:
+        try:
+            state = load_game(save_path, cfg)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            print(f"⚠️ Could not load save from {save_path}: {exc}. Starting a new colony.")
+            state = GameState(cfg)
     clock = Timekeeper(cfg)
 
     try:

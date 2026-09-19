@@ -35,8 +35,8 @@ def update_enemies(state, dt: float) -> None:
         enemy = RedAnt(id=state._next_enemy_id, x=x, y=y, hp=cfg.REDANT_HP)
         state._next_enemy_id += 1
         state.enemies.append(enemy)
-        state.history.emit(
-            state.t, state.tick, EventKind.ENEMY_SPAWN,
+        state.emit_history(
+            EventKind.ENEMY_SPAWN,
             {"enemy_id": enemy.id, "x": round(x, 1), "y": round(y, 1)},
             cause="border_pressure",
             tags=["enemy"]

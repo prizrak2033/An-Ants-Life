@@ -44,8 +44,11 @@ class GameState:
         self.territory = TerritoryModel(self.cfg)
 
         self.colony = ColonyState(self.cfg)
-        self.history = HistoryLog()
+        self.history = HistoryLog(max_events=self.cfg.HISTORY_MAX_EVENTS)
         self.milestones = MilestoneTracker(self.cfg)
         
         # Cache nest position
         self.nest_pos = (self.cfg.NEST_X, self.cfg.NEST_Y)
+
+    def emit_history(self, kind: str, data=None, **kwargs) -> None:
+        self.history.emit(self.t, self.tick, kind, dict(data or {}), **kwargs)

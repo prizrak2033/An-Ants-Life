@@ -26,8 +26,8 @@ def update_objectives(state, dt: float) -> None:
             source.claimed = True
             claims.append(source)
             state.colony.metrics["claims"] += 1
-            state.history.emit(
-                state.t, state.tick, EventKind.OBJ_CLAIMED,
+            state.emit_history(
+                EventKind.OBJ_CLAIMED,
                 {"source_id": source.id, "control": round(control, 3)},
                 cause="territory_secured",
                 impact={"claims": 1},

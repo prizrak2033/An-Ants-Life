@@ -56,6 +56,7 @@ class HistoryEvent:
 @dataclass
 class HistoryLog:
     events: List[HistoryEvent] = field(default_factory=list)
+    max_events: Optional[int] = None
 
     def emit(
         self,
@@ -75,6 +76,8 @@ class HistoryLog:
                 tags=tags or [], data=data or {}
             )
         )
+        if isinstance(self.max_events, int) and self.max_events > 0 and len(self.events) > self.max_events:
+            del self.events[:-self.max_events]
 
     def recent(self, n: int = 8) -> List[HistoryEvent]:
         return self.events[-n:]

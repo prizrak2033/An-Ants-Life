@@ -101,8 +101,8 @@ class TerritoryModel:
                 (state.tick - self._last_border_incident_tick) >= cfg.TERR_EVENT_COOLDOWN_TICKS:
             self._last_border_incident_tick = state.tick
             state.colony.metrics["border_incidents"] += 1
-            state.history.emit(
-                state.t, state.tick, EventKind.TERR_BORDER_INCIDENT,
+            state.emit_history(
+                EventKind.TERR_BORDER_INCIDENT,
                 {"pressure": round(pressure, 3)},
                 cause="enemy_pressure",
                 impact={"pressure": pressure},
@@ -113,8 +113,8 @@ class TerritoryModel:
                 (state.tick - self._last_expansion_tick) >= cfg.TERR_EVENT_COOLDOWN_TICKS:
             self._last_expansion_tick = state.tick
             state.colony.metrics["expansions"] += 1
-            state.history.emit(
-                state.t, state.tick, EventKind.TERR_EXPANSION,
+            state.emit_history(
+                EventKind.TERR_EXPANSION,
                 {"control": round(nest_control, 3)},
                 cause="colony_growth",
                 impact={"control": nest_control},

@@ -41,16 +41,16 @@ def update_combat(state, dt: float) -> None:
             enemy.hp -= _atk_for_role(cfg, ant.role)
             ant.hp -= cfg.REDANT_ATK
 
-            state.history.emit(
-                state.t, tick, EventKind.ENEMY_CONTACT,
+            state.emit_history(
+                EventKind.ENEMY_CONTACT,
                 {"ant_id": ant.id, "enemy_id": enemy.id, "role": ant.role.value},
                 cause="engagement",
                 tags=["combat"]
             )
             if enemy.hp <= 0:
                 state.colony.metrics["enemy_kills"] += 1
-                state.history.emit(
-                    state.t, tick, EventKind.ENEMY_KILL,
+                state.emit_history(
+                    EventKind.ENEMY_KILL,
                     {"ant_id": ant.id, "enemy_id": enemy.id},
                     cause="combat",
                     impact={"enemy_kills": 1},
@@ -58,8 +58,8 @@ def update_combat(state, dt: float) -> None:
                 )
             if ant.hp <= 0:
                 state.colony.metrics["ants_killed"] += 1
-                state.history.emit(
-                    state.t, tick, EventKind.ENEMY_DEATH,
+                state.emit_history(
+                    EventKind.ENEMY_DEATH,
                     {"ant_id": ant.id, "enemy_id": enemy.id, "role": ant.role.value},
                     cause="combat",
                     impact={"ants_killed": 1},
@@ -75,8 +75,8 @@ def update_combat(state, dt: float) -> None:
         if d <= cfg.QUEEN_THREAT_RADIUS and (tick - enemy.last_combat_tick) >= cfg.COMBAT_TICK_COOLDOWN:
             enemy.last_combat_tick = tick
             state.colony.queen.hp -= cfg.QUEEN_DAMAGE_PER_HIT
-            state.history.emit(
-                state.t, tick, EventKind.QUEEN_HIT,
+            state.emit_history(
+                EventKind.QUEEN_HIT,
                 {"enemy_id": enemy.id, "dmg": cfg.QUEEN_DAMAGE_PER_HIT},
                 cause="queen_threatened",
                 impact={"queen_hp": -cfg.QUEEN_DAMAGE_PER_HIT},
