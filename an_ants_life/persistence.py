@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import random
 from dataclasses import asdict
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -17,7 +18,7 @@ from .state import GameState
 from .world.food import FoodSource
 
 DEFAULT_SAVE_FILE = Path(".an_ants_life_save.json")
-SAVE_VERSION = 1
+SAVE_VERSION = 2
 
 
 def load_game(save_path: Path, cfg) -> GameState:
@@ -25,10 +26,7 @@ def load_game(save_path: Path, cfg) -> GameState:
         return GameState(cfg)
 
     with save_path.open("r", encoding="utf-8") as handle:
-        payload = json.load(handle)
-
-    if payload.get("version") != SAVE_VERSION:
-        raise ValueError(f"Unsupported save version: {payload.get('version')!r}")
+        payload = _migrate_payload(json.load(handle))
 
     data = _require_dict(payload, "state")
     state = GameState(cfg)
@@ -132,6 +130,7 @@ def load_game(save_path: Path, cfg) -> GameState:
         )
         for item in _require_list(data, "enemies")
     ]
+    _restore_random_state(payload)
     return state
 
 
@@ -139,6 +138,11 @@ def save_game(state: GameState, save_path: Path) -> None:
     save_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "version": SAVE_VERSION,
+        "meta": {
+            "saved_at_tick": state.tick,
+            "saved_at_seconds": state.t,
+            "random_state": _jsonify_random_state(random.getstate()),
+        },
         "state": {
             "t": state.t,
             "tick": state.tick,
@@ -188,6 +192,54 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
         handle.write("\n")
         temp_path = Path(handle.name)
     temp_path.replace(path)
+
+
+def _migrate_payload(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValueError("Expected save payload object")
+
+    version = payload.get("version")
+    if not isinstance(version, int):
+        raise ValueError(f"Unsupported save version: {version!r}")
+    if version > SAVE_VERSION:
+        raise ValueError(f"Unsupported save version: {version!r}")
+
+    migrated = payload
+    while version < SAVE_VERSION:
+        migrator = _MIGRATIONS.get(version)
+        if migrator is None:
+            raise ValueError(f"Unsupported save version: {version!r}")
+        migrated = migrator(migrated)
+        version = migrated["version"]
+
+    return migrated
+
+
+def _migrate_v1_to_v2(payload: dict[str, Any]) -> dict[str, Any]:
+    migrated = {
+        "version": 2,
+        "meta": {
+            "migrated_from_version": 1,
+            "saved_at_tick": _require_dict(payload, "state").get("tick", 0),
+            "saved_at_seconds": _require_dict(payload, "state").get("t", 0.0),
+            "random_state": None,
+        },
+        "state": _require_dict(payload, "state"),
+    }
+    return migrated
+
+
+_MIGRATIONS: dict[int, Any] = {
+    1: _migrate_v1_to_v2,
+}
+
+
+def _restore_random_state(payload: dict[str, Any]) -> None:
+    meta = _require_dict(payload, "meta")
+    random_state = meta.get("random_state")
+    if random_state is None:
+        return
+    random.setstate(_tupleify_random_state(random_state))
 
 
 def _as_int(value: Any) -> int:
@@ -241,3 +293,17 @@ def _dict_with_json_scalars(value: Any) -> dict[str, Any]:
 
 def _clamp_position(value: float, upper_bound: float) -> float:
     return max(0.0, min(upper_bound, value))
+
+
+def _jsonify_random_state(value: Any) -> Any:
+    if isinstance(value, tuple):
+        return [_jsonify_random_state(item) for item in value]
+    if isinstance(value, list):
+        return [_jsonify_random_state(item) for item in value]
+    return value
+
+
+def _tupleify_random_state(value: Any) -> Any:
+    if isinstance(value, list):
+        return tuple(_tupleify_random_state(item) for item in value)
+    return value

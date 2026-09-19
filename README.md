@@ -18,3 +18,4 @@ Useful options:
 - `--log-level WARNING` suppresses routine HUD output.
 
 The game now persists colony progress to `.an_ants_life_save.json` by default.
+Save files are versioned, and older saves are migrated forward automatically when possible.
