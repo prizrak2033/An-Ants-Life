@@ -6,7 +6,7 @@ import random
 from dataclasses import asdict
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any
+from typing import Any, Callable
 
 from .ants.ant import Ant
 from .ants.roles import Role
@@ -17,8 +17,54 @@ from .enemies.red_ant import RedAnt
 from .state import GameState
 from .world.food import FoodSource
 
-DEFAULT_SAVE_FILE = Path(".an_ants_life_save.json")
-SAVE_VERSION = 2
+DEFAULT_SAVE_DIR = Path(".an_ants_life_saves")
+DEFAULT_PROFILE = "default"
+SAVE_VERSION = 3
+
+
+def resolve_save_path(
+    save_path: Path | None = None,
+    *,
+    profile: str = DEFAULT_PROFILE,
+    save_dir: Path = DEFAULT_SAVE_DIR,
+) -> Path:
+    if save_path is not None:
+        return save_path
+    return save_dir / f"{normalize_profile_name(profile)}.json"
+
+
+def normalize_profile_name(profile: str) -> str:
+    candidate = profile.strip()
+    if not candidate:
+        raise ValueError("Profile name cannot be empty")
+    allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
+    if any(ch not in allowed for ch in candidate):
+        raise ValueError("Profile names may only contain letters, numbers, underscores, and hyphens")
+    return candidate
+
+
+def list_save_profiles(save_dir: Path = DEFAULT_SAVE_DIR) -> list[dict[str, Any]]:
+    if not save_dir.exists():
+        return []
+
+    profiles: list[dict[str, Any]] = []
+    for save_file in sorted(save_dir.glob("*.json")):
+        try:
+            with save_file.open("r", encoding="utf-8") as handle:
+                payload = _migrate_payload(json.load(handle))
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        meta = _require_dict(payload, "meta")
+        summary = _require_dict(payload, "summary")
+        profiles.append(
+            {
+                "profile": str(meta.get("profile") or save_file.stem),
+                "path": save_file,
+                "summary": summary,
+                "version": payload["version"],
+            }
+        )
+    return profiles
 
 
 def load_game(save_path: Path, cfg) -> GameState:
@@ -134,15 +180,18 @@ def load_game(save_path: Path, cfg) -> GameState:
     return state
 
 
-def save_game(state: GameState, save_path: Path) -> None:
+def save_game(state: GameState, save_path: Path, *, profile: str | None = None) -> None:
     save_path.parent.mkdir(parents=True, exist_ok=True)
+    summary = build_save_summary(state)
     payload = {
         "version": SAVE_VERSION,
         "meta": {
             "saved_at_tick": state.tick,
             "saved_at_seconds": state.t,
+            "profile": profile,
             "random_state": _jsonify_random_state(random.getstate()),
         },
+        "summary": summary,
         "state": {
             "t": state.t,
             "tick": state.tick,
@@ -186,6 +235,29 @@ def save_game(state: GameState, save_path: Path) -> None:
     _atomic_write_json(save_path, payload)
 
 
+def build_save_summary(state: GameState) -> dict[str, Any]:
+    workers = sum(1 for ant in state.colony.ants if ant.role == Role.WORKER)
+    scouts = sum(1 for ant in state.colony.ants if ant.role == Role.SCOUT)
+    soldiers = sum(1 for ant in state.colony.ants if ant.role == Role.SOLDIER)
+    return {
+        "tick": state.tick,
+        "time_seconds": round(state.t, 3),
+        "ants": {
+            "workers": workers,
+            "scouts": scouts,
+            "soldiers": soldiers,
+            "total": len(state.colony.ants),
+        },
+        "food_store": round(state.colony.food_store, 3),
+        "queen_hp": state.colony.queen.hp,
+        "queen_hp_max": state.colony.queen.hp_max,
+        "enemy_count": len(state.enemies),
+        "claimed_food_sources": sum(1 for source in state.world.food_sources if source.claimed),
+        "famine_active": bool(state.colony.emergency.get("famine_active", False)),
+        "chapter": state.milestones.chapter.title if state.milestones.chapter.active else None,
+    }
+
+
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     with NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as handle:
         json.dump(payload, handle, indent=2)
@@ -216,21 +288,38 @@ def _migrate_payload(payload: Any) -> dict[str, Any]:
 
 
 def _migrate_v1_to_v2(payload: dict[str, Any]) -> dict[str, Any]:
+    state = _require_dict(payload, "state")
     migrated = {
         "version": 2,
         "meta": {
             "migrated_from_version": 1,
-            "saved_at_tick": _require_dict(payload, "state").get("tick", 0),
-            "saved_at_seconds": _require_dict(payload, "state").get("t", 0.0),
+            "saved_at_tick": state.get("tick", 0),
+            "saved_at_seconds": state.get("t", 0.0),
             "random_state": None,
+            "profile": None,
         },
-        "state": _require_dict(payload, "state"),
+        "summary": _build_summary_from_payload_state(state),
+        "state": state,
     }
     return migrated
 
 
-_MIGRATIONS: dict[int, Any] = {
+def _migrate_v2_to_v3(payload: dict[str, Any]) -> dict[str, Any]:
+    state = _require_dict(payload, "state")
+    meta = dict(_require_dict(payload, "meta"))
+    meta.setdefault("profile", None)
+    meta["migrated_from_version"] = payload.get("version", 2)
+    return {
+        "version": 3,
+        "meta": meta,
+        "summary": _build_summary_from_payload_state(state),
+        "state": state,
+    }
+
+
+_MIGRATIONS: dict[int, Callable[[dict[str, Any]], dict[str, Any]]] = {
     1: _migrate_v1_to_v2,
+    2: _migrate_v2_to_v3,
 }
 
 
@@ -293,6 +382,34 @@ def _dict_with_json_scalars(value: Any) -> dict[str, Any]:
 
 def _clamp_position(value: float, upper_bound: float) -> float:
     return max(0.0, min(upper_bound, value))
+
+
+def _build_summary_from_payload_state(state: dict[str, Any]) -> dict[str, Any]:
+    colony = _require_dict(state, "colony")
+    ants = _require_list(colony, "ants")
+    roles = [item.get("role", Role.WORKER.value) for item in ants]
+    milestones = _require_dict(state, "milestones")
+    chapter = _require_dict(milestones, "chapter")
+    world = _require_dict(state, "world")
+    food_sources = _require_list(world, "food_sources")
+    famine_active = bool(_require_dict(colony, "emergency").get("famine_active", False))
+    return {
+        "tick": max(0, _as_int(state.get("tick", 0))),
+        "time_seconds": round(_as_float(state.get("t", 0.0)), 3),
+        "ants": {
+            "workers": sum(1 for role in roles if role == Role.WORKER.value),
+            "scouts": sum(1 for role in roles if role == Role.SCOUT.value),
+            "soldiers": sum(1 for role in roles if role == Role.SOLDIER.value),
+            "total": len(ants),
+        },
+        "food_store": round(max(0.0, _as_float(colony.get("food_store", 0.0))), 3),
+        "queen_hp": max(0, _as_int(_require_dict(colony, "queen").get("hp", 0))),
+        "queen_hp_max": max(1, _as_int(_require_dict(colony, "queen").get("hp_max", 1))),
+        "enemy_count": len(_require_list(state, "enemies")),
+        "claimed_food_sources": sum(1 for source in food_sources if bool(source.get("claimed", False))),
+        "famine_active": famine_active,
+        "chapter": str(chapter.get("title")) if chapter.get("active") else None,
+    }
 
 
 def _jsonify_random_state(value: Any) -> Any:

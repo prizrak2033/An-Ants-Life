@@ -17,7 +17,14 @@ import logging
 from pathlib import Path
 
 from .config import SimConfig
-from .persistence import DEFAULT_SAVE_FILE, load_game, save_game
+from .persistence import (
+    DEFAULT_PROFILE,
+    DEFAULT_SAVE_DIR,
+    list_save_profiles,
+    load_game,
+    resolve_save_path,
+    save_game,
+)
 from .state import GameState
 from .systems.combat import update_combat
 from .systems.emergencies import update_emergencies
@@ -36,8 +43,19 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--save-file",
         type=Path,
-        default=DEFAULT_SAVE_FILE,
-        help="JSON save file used to resume the colony between runs.",
+        default=None,
+        help="Explicit JSON save file used to resume the colony between runs.",
+    )
+    parser.add_argument(
+        "--save-dir",
+        type=Path,
+        default=DEFAULT_SAVE_DIR,
+        help="Directory containing named save profiles.",
+    )
+    parser.add_argument(
+        "--profile",
+        default=DEFAULT_PROFILE,
+        help="Named save profile to load from the save directory.",
     )
     parser.add_argument(
         "--autosave-ticks",
@@ -62,6 +80,11 @@ def _parse_args() -> argparse.Namespace:
         default="INFO",
         help="Controls console verbosity for HUD, debug output, and lifecycle messages.",
     )
+    parser.add_argument(
+        "--list-profiles",
+        action="store_true",
+        help="List discovered named save profiles and exit.",
+    )
     return parser.parse_args()
 
 
@@ -69,12 +92,25 @@ def configure_logging(level: str) -> None:
     logging.basicConfig(level=getattr(logging, level), format="%(message)s")
 
 
-def _maybe_autosave(state: GameState, save_path: Path, autosave_ticks: int) -> None:
+def _maybe_autosave(
+    state: GameState,
+    save_path: Path,
+    autosave_ticks: int,
+    *,
+    profile: str | None = None,
+) -> None:
     if autosave_ticks > 0 and state.tick % autosave_ticks == 0:
-        save_game(state, save_path)
+        save_game(state, save_path, profile=profile)
 
 
-def advance_simulation(state: GameState, dt: float, save_path: Path, autosave_ticks: int) -> None:
+def advance_simulation(
+    state: GameState,
+    dt: float,
+    save_path: Path,
+    autosave_ticks: int,
+    *,
+    profile: str | None = None,
+) -> None:
     state.t += dt
     state.tick += 1
 
@@ -99,7 +135,7 @@ def advance_simulation(state: GameState, dt: float, save_path: Path, autosave_ti
     if debug_dump:
         LOGGER.debug(debug_dump)
 
-    _maybe_autosave(state, save_path, autosave_ticks)
+    _maybe_autosave(state, save_path, autosave_ticks, profile=profile)
 
 
 def get_stop_message(state: GameState, max_ticks: int | None) -> str | None:
@@ -112,11 +148,12 @@ def get_stop_message(state: GameState, max_ticks: int | None) -> str | None:
 
 def run(
     *,
-    save_path: Path = DEFAULT_SAVE_FILE,
+    save_path: Path,
     autosave_ticks: int = 300,
     max_ticks: int | None = None,
     new_game: bool = False,
     log_level: str = "INFO",
+    profile: str | None = None,
 ) -> None:
     """Main game loop - runs the ant colony simulation."""
     configure_logging(log_level)
@@ -134,7 +171,7 @@ def run(
     try:
         while True:
             dt = clock.step()
-            advance_simulation(state, dt, save_path, autosave_ticks)
+            advance_simulation(state, dt, save_path, autosave_ticks, profile=profile)
             stop_message = get_stop_message(state, max_ticks)
             if stop_message is not None:
                 LOGGER.warning(stop_message)
@@ -142,15 +179,49 @@ def run(
     except KeyboardInterrupt:
         LOGGER.warning("⏸️ Simulation interrupted. Saving colony state...")
     finally:
-        save_game(state, save_path)
+        save_game(state, save_path, profile=profile)
 
 
-if __name__ == "__main__":
+def main() -> None:
     args = _parse_args()
+    configure_logging(args.log_level)
+    if args.list_profiles:
+        profiles = list_save_profiles(args.save_dir)
+        if not profiles:
+            LOGGER.warning("No save profiles found in %s", args.save_dir)
+            return
+        for profile in profiles:
+            summary = profile["summary"]
+            LOGGER.warning(
+                "%s: tick=%s food=%.1f queen=%s/%s ants=%s enemies=%s chapter=%s",
+                profile["profile"],
+                summary.get("tick", 0),
+                float(summary.get("food_store", 0.0)),
+                summary.get("queen_hp", 0),
+                summary.get("queen_hp_max", 0),
+                _total_ants_from_summary(summary),
+                summary.get("enemy_count", 0),
+                summary.get("chapter") or "-",
+            )
+        return
+
+    resolved_save_path = resolve_save_path(args.save_file, profile=args.profile, save_dir=args.save_dir)
     run(
-        save_path=args.save_file,
+        save_path=resolved_save_path,
         autosave_ticks=args.autosave_ticks,
         max_ticks=args.max_ticks,
         new_game=args.new_game,
         log_level=args.log_level,
+        profile=args.profile if args.save_file is None else None,
     )
+
+
+def _total_ants_from_summary(summary: dict) -> int:
+    ants = summary.get("ants", {})
+    if isinstance(ants, dict):
+        return int(ants.get("total", 0))
+    return 0
+
+
+if __name__ == "__main__":
+    main()

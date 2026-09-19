@@ -7,7 +7,7 @@ from pathlib import Path
 from an_ants_life.config import SimConfig
 from an_ants_life.enemies.red_ant import RedAnt
 from an_ants_life.main import advance_simulation, get_stop_message
-from an_ants_life.persistence import load_game, save_game
+from an_ants_life.persistence import list_save_profiles, load_game, resolve_save_path, save_game
 from an_ants_life.state import GameState
 
 
@@ -74,8 +74,9 @@ class RuntimeTests(unittest.TestCase):
 
         self.assertEqual(migrated.tick, 9)
         self.assertTrue(migrated.world.food_sources[0].claimed)
-        self.assertEqual(upgraded_payload["version"], 2)
+        self.assertEqual(upgraded_payload["version"], 3)
         self.assertIn("meta", upgraded_payload)
+        self.assertIn("summary", upgraded_payload)
         self.assertEqual(upgraded_payload["meta"]["saved_at_tick"], 9)
 
     def test_save_restores_random_state_and_gameplay_state(self) -> None:
@@ -102,6 +103,21 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(loaded.milestones.chapter.title, "Chapter: Test")
         self.assertEqual(len(loaded.enemies), 1)
         self.assertAlmostEqual(random.random(), expected_random)
+
+    def test_profile_save_paths_and_listing(self) -> None:
+        state = GameState(SimConfig())
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_dir = Path(tmpdir)
+            alpha_path = resolve_save_path(None, profile="alpha", save_dir=save_dir)
+            beta_path = resolve_save_path(None, profile="beta", save_dir=save_dir)
+            save_game(state, alpha_path, profile="alpha")
+            state.tick = 12
+            save_game(state, beta_path, profile="beta")
+
+            profiles = list_save_profiles(save_dir)
+
+        self.assertEqual([profile["profile"] for profile in profiles], ["alpha", "beta"])
+        self.assertEqual(profiles[1]["summary"]["tick"], 12)
 
 
 if __name__ == "__main__":
