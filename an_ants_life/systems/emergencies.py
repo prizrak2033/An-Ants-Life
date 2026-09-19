@@ -6,8 +6,8 @@ can trigger a raid that costs ants, rate-limited by a cooldown.
 from __future__ import annotations
 import random
 
-from ants.roles import Role
-from colony.history import EventKind
+from ..ants.roles import Role
+from ..colony.history import EventKind
 
 
 def update_emergencies(state, dt: float) -> None:

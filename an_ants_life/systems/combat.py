@@ -6,8 +6,8 @@ queen's threat radius strike her directly.
 from __future__ import annotations
 import math
 
-from ants.roles import Role
-from colony.history import EventKind
+from ..ants.roles import Role
+from ..colony.history import EventKind
 
 
 def _atk_for_role(cfg, role: Role) -> int:

@@ -9,8 +9,8 @@ import math
 import random
 from typing import List, Tuple
 
-from ants.roles import Role
-from colony.history import EventKind
+from ..ants.roles import Role
+from ..colony.history import EventKind
 
 
 class TerritoryModel:

@@ -7,8 +7,8 @@ import math
 import random
 from typing import Tuple
 
-from enemies.red_ant import RedAnt
-from colony.history import EventKind
+from ..colony.history import EventKind
+from ..enemies.red_ant import RedAnt
 
 
 def _spawn_point(cfg) -> Tuple[float, float]:

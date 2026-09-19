@@ -11,12 +11,12 @@ from dataclasses import dataclass
 import math
 from typing import TYPE_CHECKING
 
-from ants.roles import Role
-from ants.ai import choose_intent
-from colony.history import EventKind
+from .ai import choose_intent
+from .roles import Role
+from ..colony.history import EventKind
 
 if TYPE_CHECKING:
-    from state import GameState
+    from ..state import GameState
 
 
 def _clamp(v: float, lo: float, hi: float) -> float:

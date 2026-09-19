@@ -3,8 +3,8 @@ HUD: a compact one-line status readout of the colony, printed
 periodically to the console.
 """
 from __future__ import annotations
-from ants.roles import Role
-from ui.chronicle import format_chronicle
+from ..ants.roles import Role
+from .chronicle import format_chronicle
 
 
 def render_hud(state) -> None:

@@ -6,7 +6,7 @@ import math
 import random
 from typing import List, Optional, Tuple
 
-from world.food import FoodSource
+from .food import FoodSource
 
 
 class WorldMap:

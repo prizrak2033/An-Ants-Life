@@ -5,7 +5,7 @@ pressure as a reward for holding ground.
 """
 from __future__ import annotations
 
-from colony.history import EventKind
+from ..colony.history import EventKind
 
 
 def update_objectives(state, dt: float) -> None:

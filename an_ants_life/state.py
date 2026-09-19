@@ -7,15 +7,15 @@ including the world, colony, enemies, and various subsystems.
 
 from dataclasses import dataclass, field
 from typing import Tuple
-from config import SimConfig
+from .config import SimConfig
 
-from colony.colony_state import ColonyState
-from colony.history import HistoryLog
-from colony.milestones import MilestoneTracker
+from .colony.colony_state import ColonyState
+from .colony.history import HistoryLog
+from .colony.milestones import MilestoneTracker
 
-from world.map import WorldMap
-from world.pheromones import PheromoneSystem
-from world.territory import TerritoryModel
+from .world.map import WorldMap
+from .world.pheromones import PheromoneSystem
+from .world.territory import TerritoryModel
 
 
 @dataclass

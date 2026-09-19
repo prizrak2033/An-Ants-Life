@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
-from colony.history import EventKind
+from .history import EventKind
 
 @dataclass
 class ChapterState:
