@@ -5,15 +5,14 @@ small ASCII grid of the pheromone or territory field around the nest.
 from __future__ import annotations
 
 
-def debug_dump(state, every_ticks: int) -> None:
+def build_debug_dump(state, every_ticks: int) -> str:
     cfg = state.cfg
     if not cfg.DEBUG_ENABLE:
-        return
+        return ""
     if state.tick % every_ticks != 0:
-        return
+        return ""
 
-    print(f"--- debug tick={state.tick} metrics={state.colony.metrics} ---")
-    print(_render_map(state))
+    return f"--- debug tick={state.tick} metrics={state.colony.metrics} ---\n{_render_map(state)}"
 
 
 def _render_map(state) -> str:

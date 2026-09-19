@@ -8,4 +8,5 @@ if __name__ == "__main__":
         autosave_ticks=args.autosave_ticks,
         max_ticks=args.max_ticks,
         new_game=args.new_game,
+        log_level=args.log_level,
     )

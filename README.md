@@ -15,5 +15,6 @@ Useful options:
 - `--save-file /path/to/save.json` changes the save location.
 - `--autosave-ticks 300` controls autosave frequency.
 - `--max-ticks 500` runs a bounded simulation for smoke tests.
+- `--log-level WARNING` suppresses routine HUD output.
 
 The game now persists colony progress to `.an_ants_life_save.json` by default.

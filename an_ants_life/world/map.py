@@ -44,13 +44,15 @@ class WorldMap:
         return best
 
     def try_take_food(self, pos: Tuple[float, float], radius: float, amount: float) -> float:
+        if amount <= 0:
+            return 0.0
         x, y = pos
         for source in self.food_sources:
             if source.amount <= 0:
                 continue
             if math.hypot(source.x - x, source.y - y) <= radius:
                 taken = min(amount, source.amount)
-                source.amount -= taken
+                source.amount = max(0.0, source.amount - taken)
                 return taken
         return 0.0
 

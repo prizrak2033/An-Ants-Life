@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import asdict
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -32,8 +33,8 @@ def load_game(save_path: Path, cfg) -> GameState:
     data = _require_dict(payload, "state")
     state = GameState(cfg)
     state.t = _as_float(data.get("t", 0.0))
-    state.tick = _as_int(data.get("tick", 0))
-    state._next_enemy_id = _as_int(data.get("_next_enemy_id", 1))
+    state.tick = max(0, _as_int(data.get("tick", 0)))
+    state._next_enemy_id = max(1, _as_int(data.get("_next_enemy_id", 1)))
 
     world = _require_dict(data, "world")
     state.world.food_sources = [
@@ -49,13 +50,12 @@ def load_game(save_path: Path, cfg) -> GameState:
     state.world._next_food_id = _as_int(world.get("next_food_id", len(state.world.food_sources) + 1))
 
     pheromones = _require_dict(data, "pheromones")
-    state.pheromones.grids = {
-        channel: _grid_from_json(grid)
-        for channel, grid in _require_dict(pheromones, "grids").items()
-    }
+    for channel, grid in _require_dict(pheromones, "grids").items():
+        if channel in state.pheromones.grids:
+            state.pheromones.grids[channel] = _merge_grid(grid, state.pheromones.grids[channel])
 
     territory = _require_dict(data, "territory")
-    state.territory.grid = _grid_from_json(territory.get("grid", state.territory.grid))
+    state.territory.grid = _merge_grid(territory.get("grid", state.territory.grid), state.territory.grid)
     state.territory._last_border_incident_tick = _as_int(territory.get("last_border_incident_tick", -10_000))
     state.territory._last_expansion_tick = _as_int(territory.get("last_expansion_tick", -10_000))
 
@@ -65,10 +65,10 @@ def load_game(save_path: Path, cfg) -> GameState:
 
     queen = _require_dict(colony, "queen")
     state.colony.queen = Queen(
-        x=_as_float(queen.get("x", cfg.NEST_X)),
-        y=_as_float(queen.get("y", cfg.NEST_Y)),
-        hp=_as_int(queen.get("hp", cfg.QUEEN_HP_MAX)),
-        hp_max=_as_int(queen.get("hp_max", cfg.QUEEN_HP_MAX)),
+        x=_clamp_position(_as_float(queen.get("x", cfg.NEST_X)), cfg.WORLD_W),
+        y=_clamp_position(_as_float(queen.get("y", cfg.NEST_Y)), cfg.WORLD_H),
+        hp=max(0, _as_int(queen.get("hp", cfg.QUEEN_HP_MAX))),
+        hp_max=max(1, _as_int(queen.get("hp_max", cfg.QUEEN_HP_MAX))),
     )
 
     state.colony.emergency = _dict_with_json_scalars(colony.get("emergency", {}))
@@ -80,12 +80,12 @@ def load_game(save_path: Path, cfg) -> GameState:
         Ant(
             id=_as_int(item.get("id")),
             role=Role(item.get("role", Role.WORKER.value)),
-            x=_as_float(item.get("x")),
-            y=_as_float(item.get("y")),
+            x=_clamp_position(_as_float(item.get("x")), cfg.WORLD_W),
+            y=_clamp_position(_as_float(item.get("y")), cfg.WORLD_H),
             vx=_as_float(item.get("vx", 0.0)),
             vy=_as_float(item.get("vy", 0.0)),
             carrying=max(0.0, _as_float(item.get("carrying", 0.0))),
-            hp=_as_int(item.get("hp", cfg.ANT_HP_MAX)),
+            hp=max(0, _as_int(item.get("hp", cfg.ANT_HP_MAX))),
             last_combat_tick=_as_int(item.get("last_combat_tick", -10_000)),
         )
         for item in _require_list(colony, "ants")
@@ -123,9 +123,9 @@ def load_game(save_path: Path, cfg) -> GameState:
     state.enemies = [
         RedAnt(
             id=_as_int(item.get("id")),
-            x=_as_float(item.get("x")),
-            y=_as_float(item.get("y")),
-            hp=_as_int(item.get("hp", cfg.REDANT_HP)),
+            x=_clamp_position(_as_float(item.get("x")), cfg.WORLD_W),
+            y=_clamp_position(_as_float(item.get("y")), cfg.WORLD_H),
+            hp=max(0, _as_int(item.get("hp", cfg.REDANT_HP))),
             vx=_as_float(item.get("vx", 0.0)),
             vy=_as_float(item.get("vy", 0.0)),
             last_combat_tick=_as_int(item.get("last_combat_tick", -10_000)),
@@ -195,7 +195,10 @@ def _as_int(value: Any) -> int:
 
 
 def _as_float(value: Any) -> float:
-    return float(value)
+    converted = float(value)
+    if not math.isfinite(converted):
+        raise ValueError("Expected finite numeric value")
+    return converted
 
 
 def _require_dict(mapping: dict[str, Any], key: str) -> dict[str, Any]:
@@ -214,10 +217,16 @@ def _require_list(mapping: dict[str, Any], key: str) -> list[dict[str, Any]]:
     return value
 
 
-def _grid_from_json(value: Any) -> list[list[float]]:
+def _merge_grid(value: Any, fallback: list[list[float]]) -> list[list[float]]:
     if not isinstance(value, list):
-        raise ValueError("Expected grid rows")
-    return [[_as_float(cell) for cell in row] for row in value if isinstance(row, list)]
+        return fallback
+    merged = [row[:] for row in fallback]
+    for cx, row in enumerate(value[: len(merged)]):
+        if not isinstance(row, list):
+            continue
+        for cy, cell in enumerate(row[: len(merged[cx])]):
+            merged[cx][cy] = _as_float(cell)
+    return merged
 
 
 def _dict_with_json_scalars(value: Any) -> dict[str, Any]:
@@ -228,3 +237,7 @@ def _dict_with_json_scalars(value: Any) -> dict[str, Any]:
         if isinstance(item, (str, int, float, bool)) or item is None:
             result[str(key)] = item
     return result
+
+
+def _clamp_position(value: float, upper_bound: float) -> float:
+    return max(0.0, min(upper_bound, value))
