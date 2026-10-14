@@ -64,9 +64,15 @@ short and skimmable, do not bury the point in preamble.
 
 ## Dependencies: standard library only
 
-Every import in `an_ants_life/` is stdlib or a local module. There is no
+**The shipped game** imports stdlib and local modules only. There is no
 `requirements.txt`, no `pyproject.toml`, no virtualenv, and the browser
 UI is hand-written canvas with no framework or CDN script.
+
+**The test suite** may use optional tools that skip when absent. There
+is exactly one - `playwright`, for the audio tests - and it is declared
+in `OPTIONAL_TEST_ONLY` in `tests/test_docs.py`. Both halves of this are
+enforced by tests; see ADR-0006, which exists because the earlier
+version of this rule was confidently wrong for a month.
 
 **Ask before adding anything third-party — every time, before writing the
 import, not after.** That includes test-only and dev-only packages, and

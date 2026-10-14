@@ -31,6 +31,9 @@ coat.
 
 `proposed` · `accepted` · `superseded by ADR-NNNN` · `deprecated`
 
+A record may also **amend** another: a correction too small to supersede
+the whole decision. ADR-0006 amends 0001 that way.
+
 ## Index
 
 | # | Title | Status |
@@ -40,3 +43,4 @@ coat.
 | [0003](0003-keep-failed-mechanics-disabled.md) | Failed mechanics ship disabled, not deleted | accepted |
 | [0004](0004-rampart-as-the-second-work.md) | A rampart as the second work | superseded by 0005 |
 | [0005](0005-fungus-garden-replaces-rampart.md) | A fungus garden replaces the rampart | accepted |
+| [0006](0006-optional-test-only-dependencies.md) | One optional test-only dependency is permitted | accepted |
