@@ -44,3 +44,4 @@ the whole decision. ADR-0006 amends 0001 that way.
 | [0004](0004-rampart-as-the-second-work.md) | A rampart as the second work | superseded by 0005 |
 | [0005](0005-fungus-garden-replaces-rampart.md) | A fungus garden replaces the rampart | accepted |
 | [0006](0006-optional-test-only-dependencies.md) | One optional test-only dependency is permitted | accepted |
+| [0007](0007-saves-are-untrusted-input.md) | Save files are untrusted input | accepted |

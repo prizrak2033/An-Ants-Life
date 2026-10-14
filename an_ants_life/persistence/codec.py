@@ -78,9 +78,81 @@ def _config_to_dict(cfg: SimConfig) -> Dict[str, Any]:
             for f in dataclass_fields(cfg) if _is_persisted(f.name)}
 
 
+# Fields a save must not be able to set to zero or below: each one is a
+# divisor, a grid dimension, or a loop bound somewhere, and a hostile or
+# simply corrupt value turns loading a friend's colony into a traceback.
+# Dimensions describe the shape of the grids stored alongside them. A
+# save whose config disagrees with its own terrain is inconsistent, and
+# used to surface as an IndexError somewhere far from the cause.
+_STRUCTURAL = ("WORLD_W", "WORLD_H", "PHERO_GRID", "TERRAIN_CELL")
+
+
+class CorruptSave(ValueError):
+    """A save whose parts do not describe the same world."""
+
+
+_MUST_BE_POSITIVE = frozenset({
+    "PHERO_GRID", "WORLD_W", "WORLD_H", "TARGET_FPS", "MAX_DT",
+    "FOOD_SOURCE_RESPAWN_SECONDS", "FOOD_PER_SOURCE", "TERRAIN_CELL",
+    "CAPACITY_SMOOTHING_SECONDS", "COMBAT_COOLDOWN_SECONDS",
+})
+# Generous, but short of the values that would allocate a grid big enough
+# to take the machine down.
+_SANE_MAX = 1e6
+
+
+def _config_value_ok(name: str, default: Any, value: Any) -> bool:
+    """Whether a value from a save file may be used.
+
+    Save files are data, not code - they are JSON, so loading one cannot
+    execute anything. But nothing checked their *values*, and a save with
+    PHERO_GRID set to 0 crashed on load with an unhandled
+    ZeroDivisionError, while a negative FOOD_UPKEEP_PER_ANT_PER_SEC
+    quietly granted infinite food. Neither is a compromise; both are a
+    bad time for someone opening a colony a friend sent them.
+
+    Anything rejected here falls back to the current default rather than
+    failing the load, so an old or odd save still opens and plays.
+    """
+    if isinstance(default, bool):
+        return isinstance(value, bool)
+    if isinstance(default, int) and not isinstance(value, bool):
+        if not isinstance(value, int):
+            return False
+    elif isinstance(default, float):
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return False
+    elif isinstance(default, str):
+        return isinstance(value, str)
+    else:
+        # Tuples and anything else structured: accept only the same shape.
+        return type(value) is type(default)
+
+    if value != value or abs(value) == float("inf"):  # NaN, +/-inf
+        return False
+    if abs(value) > _SANE_MAX:
+        return False
+    if name in _MUST_BE_POSITIVE and value <= 0:
+        return False
+    # A negative where the default is not negative is either corruption
+    # or a cheat - FOOD_UPKEEP_PER_ANT_PER_SEC at -5 feeds the colony
+    # forever. Zero stays legal, because several fields use it to turn a
+    # system off, which is a real thing to want.
+    if default >= 0 and value < 0:
+        return False
+    return True
+
+
 def _config_from_dict(data: Dict[str, Any]) -> SimConfig:
-    known = {f.name for f in dataclass_fields(SimConfig) if _is_persisted(f.name)}
-    return SimConfig(**{k: v for k, v in (data or {}).items() if k in known})
+    defaults = {f.name: getattr(SimConfig, f.name, None)
+                for f in dataclass_fields(SimConfig) if _is_persisted(f.name)}
+    clean = {}
+    for key, value in (data or {}).items():
+        if key not in defaults:
+            continue  # unknown field, from a newer or older build
+        if _config_value_ok(key, defaults[key], value):
+            clean[key] = value
+    return SimConfig(**clean)
 
 
 # ---------- pieces ----------
@@ -232,12 +304,42 @@ def dump_state(state: GameState) -> Dict[str, Any]:
     }
 
 
+def _check_shape(cfg: SimConfig, data: Dict[str, Any]) -> None:
+    """Confirm the save's grids are the size its config says they are.
+
+    Dimensions and grid contents have to agree. When they did not, the
+    mismatch surfaced as an IndexError from deep inside terrain loading,
+    with nothing pointing at the cause. A save a friend sent, or one
+    hand-edited, deserves a sentence instead.
+    """
+    terrain = data.get("terrain")
+    if isinstance(terrain, str):
+        cols = max(1, int(cfg.WORLD_W // cfg.TERRAIN_CELL) + 1)
+        rows = max(1, int(cfg.WORLD_H // cfg.TERRAIN_CELL) + 1)
+        if len(terrain) != cols * rows:
+            raise CorruptSave(
+                f"this save says the world is {cfg.WORLD_W}x{cfg.WORLD_H}, but "
+                f"its terrain holds {len(terrain)} tiles instead of {cols * rows}. "
+                f"The file is inconsistent with itself.")
+
+    phero = (data.get("pheromones") or {}).get("food")
+    if isinstance(phero, list):
+        cols = max(1, int(cfg.WORLD_W // cfg.PHERO_GRID) + 1)
+        rows = max(1, int(cfg.WORLD_H // cfg.PHERO_GRID) + 1)
+        if len(phero) != cols * rows:
+            raise CorruptSave(
+                f"this save's scent grid holds {len(phero)} cells, but its "
+                f"world size needs {cols * rows}. The file is inconsistent "
+                f"with itself.")
+
+
 def load_state(data: Dict[str, Any]) -> GameState:
     version = data.get("version")
     if version != SAVE_VERSION:
         raise ValueError(f"unsupported save version {version!r} (expected {SAVE_VERSION})")
 
     cfg = _config_from_dict(data.get("config"))
+    _check_shape(cfg, data)
     state = GameState(cfg)
     state.t = data["t"]
     state.tick = data["tick"]
